@@ -1,0 +1,21 @@
+# Cloudflare resources owned by github.com/opencoworkers/subagentjobs
+# Account: e6294e3ea89f8207af387d459824aaae (alex@jadecli.com)
+
+[meta]
+repo    = "opencoworkers/subagentjobs"
+account = "e6294e3ea89f8207af387d459824aaae"
+zone    = "5fd255b7f2c7ae2ebd301806ca70e65c"  # subagentjobs.com
+tag     = "github:opencoworkers/subagentjobs"
+
+[workers]
+web     = "subagentjobs-web"     # subagentjobs.com/* — Hono TS, D1 read-only
+etl     = "subagentjobs-etl"     # CDC crawler (JS shim → Rust MCP, deprecated)
+enrich  = "subagentjobs-enrich"  # taxonomy enrichment (JS, deprecated)
+# next:  subagentjobs-mcp        # Rust MCP server binary (task-state-machine)
+
+[d1]
+dwh = "305ed041-5dae-44e5-ab1f-8a63efd8627e"  # subagentjobs-dwh (Kimball)
+
+[dns]
+root = "subagentjobs.com"
+www  = "www.subagentjobs.com"
