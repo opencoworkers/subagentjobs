@@ -19,7 +19,7 @@ rmcp = { version = "1", features = ["server", "client", "transport-io", "schemar
 redis = { version = "1", features = ["tokio-comp", "connection-manager", "json"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
-schemars = { version = "0.8", features = ["chrono", "uuid1"] }
+schemars = { version = "1", features = ["chrono04", "uuid1"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "json", "chrono", "migrate", "macros"] }
 sha2 = "0.10"
 hex = "0.4"

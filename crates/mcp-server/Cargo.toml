@@ -2,12 +2,26 @@
 name = "mcp-server"
 edition.workspace = true
 rust-version.workspace = true
+
+[[bin]]
+name = "subagentjobs-mcp"
+path = "src/main.rs"
+
 [dependencies]
 schema = { path = "../schema" }
-rmcp.workspace = true
+durable-store = { path = "../durable-store" }
+rmcp = { version = "1", features = ["server", "client", "transport-io", "schemars", "macros"] }
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
 anyhow.workspace = true
+clap.workspace = true
+sha2.workspace = true
+hex.workspace = true
+reqwest.workspace = true
+scraper.workspace = true
+chrono = { workspace = true }
+sqlx.workspace = true
