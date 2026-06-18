@@ -1,0 +1,21 @@
+[package]
+name = "durable-store"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+schema = { path = "../schema" }
+sqlx.workspace = true
+redis.workspace = true
+sha2.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }

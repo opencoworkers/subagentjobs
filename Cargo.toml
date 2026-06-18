@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/schema",
+  "crates/task-state-machine",
+  "crates/mcp-server",
+  "crates/acp-bridge",
+  "crates/a2a-node",
+  "crates/durable-store",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+
+[workspace.dependencies]
+rmcp = { version = "1", features = ["server", "client", "transport-io", "schemars"] }
+redis = { version = "1", features = ["tokio-comp", "connection-manager", "json"] }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = { version = "1", features = ["raw_value"] }
+schemars = { version = "0.8", features = ["chrono", "uuid1"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "json", "chrono", "migrate", "macros"] }
+sha2 = "0.10"
+hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+scraper = "0.22"
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+anyhow = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"
+clap = { version = "4", features = ["derive", "env"] }

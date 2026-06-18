@@ -1,0 +1,12 @@
+[package]
+name = "task-state-machine"
+edition.workspace = true
+rust-version.workspace = true
+[dependencies]
+schema = { path = "../schema" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
