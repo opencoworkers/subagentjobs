@@ -1,0 +1,15 @@
+[package]
+name = "a2a-bridge"
+edition.workspace = true
+rust-version.workspace = true
+
+# a2a-lf + a2a-server-lf from a2aproject/a2a-rs (git, not on crates.io yet)
+[dependencies]
+a2a = { git = "https://github.com/a2aproject/a2a-rs", package = "a2a-lf" }
+a2a-server = { git = "https://github.com/a2aproject/a2a-rs", package = "a2a-server-lf" }
+schema = { path = "../schema" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+anyhow.workspace = true

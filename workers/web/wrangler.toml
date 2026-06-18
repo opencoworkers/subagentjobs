@@ -1,0 +1,15 @@
+name = "subagentjobs-web"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "subagentjobs-dwh"
+database_id = "305ed041-5dae-44e5-ab1f-8a63efd8627e"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "TBD"
+
+[triggers]
+routes = ["subagentjobs.com/*", "www.subagentjobs.com/*"]

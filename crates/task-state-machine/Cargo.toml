@@ -2,11 +2,16 @@
 name = "task-state-machine"
 edition.workspace = true
 rust-version.workspace = true
+
 [dependencies]
 schema = { path = "../schema" }
+durable-store = { path = "../durable-store" }
 serde.workspace = true
 serde_json.workspace = true
+sqlx.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
+uuid.workspace = true
+chrono.workspace = true

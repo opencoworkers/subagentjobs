@@ -5,7 +5,7 @@ members = [
   "crates/task-state-machine",
   "crates/mcp-server",
   "crates/acp-bridge",
-  "crates/a2a-node",
+  "crates/a2a-bridge",
   "crates/durable-store",
 ]
 
