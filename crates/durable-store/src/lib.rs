@@ -145,3 +145,5 @@ impl DurableStore {
         Ok((nodes, edges))
     }
 }
+
+pub mod migrate;
