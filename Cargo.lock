@@ -1649,6 +1649,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sqlx",
+ "task-state-machine",
  "tokio",
  "tracing",
  "tracing-subscriber",

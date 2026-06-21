@@ -75,6 +75,22 @@ pub async fn mark_failed(pool: &PgPool, id: Uuid, error: &str) -> Result<CrawlTa
     .await?)
 }
 
+/// Claim the Pending task for a specific board → Crawling.
+/// Unlike `claim_pending` (which claims any pending task), this targets exactly
+/// one board — safe to call concurrently per-board from separate `crawl_board` invocations.
+pub async fn claim_board_task(pool: &PgPool, board_token: &str) -> Result<Option<CrawlTask>> {
+    Ok(sqlx::query_as(
+        "UPDATE crawl_task
+         SET state='Crawling', attempts=attempts+1, updated_at=NOW()
+         WHERE board_token=$1 AND state='Pending' AND attempts < $2
+         RETURNING *"
+    )
+    .bind(board_token)
+    .bind(MAX_ATTEMPTS)
+    .fetch_optional(pool)
+    .await?)
+}
+
 /// DDL: create crawl_task table if not exists.
 pub async fn ensure_table(pool: &PgPool) -> Result<()> {
     sqlx::query(

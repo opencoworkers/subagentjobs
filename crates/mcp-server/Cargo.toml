@@ -10,6 +10,7 @@ path = "src/main.rs"
 [dependencies]
 schema = { path = "../schema" }
 durable-store = { path = "../durable-store" }
+task-state-machine = { path = "../task-state-machine" }
 rmcp = { version = "1", features = ["server", "client", "transport-io", "schemars", "macros"] }
 serde.workspace = true
 serde_json.workspace = true

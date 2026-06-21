@@ -11,7 +11,8 @@ pub struct SearchJobsInput {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct GetJobInput {
-    pub sha256: String,
+    /// Primary key: job_post_id from fact_job_posting.
+    pub job_post_id: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
