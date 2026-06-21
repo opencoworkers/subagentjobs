@@ -1,7 +1,11 @@
 {
   "_profile": "cowork",
-  "_description": "Cowork tab — Claude Desktop configured for agentic file/task work on the subagentjobs repo. Provides MCP servers for Cloudflare (D1 queries, Worker deploys) and GitHub. The Code tab is also available but not the focus.",
-  "_activate": "cp profiles/claude_desktop_cowork.json ~/Library/Application\\ Support/Claude/claude_desktop_config.json && pkill -x 'Claude' 2>/dev/null; open -a Claude",
+  "_surface": "macos__desktop_cowork__engineering_coworker",
+  "_description": "Cowork tab — macos__desktop_cowork__engineering_coworker profile. Provides: Cloudflare (docs + worker management), GitHub, filesystem, Chrome DevTools (browser automation), and the engineering-coworker Rust MCP binary (cargo/wrangler/git/D1 tools that Claude cloud can actually EXECUTE on this Mac).",
+  "_activate": "bash profiles/switch-profile.sh cowork",
+
+  "_chrome_devtools_note": "chrome-devtools spawns Chrome via Puppeteer — only works on macOS desktop, not in Claude cloud inference. Gives Claude browser automation and performance profiling.",
+  "_engineering_coworker_note": "engineering-coworker is the Rust binary at target/debug/engineering-coworker. It bridges Claude (cloud) to local cargo/wrangler/git/D1 commands. Must be compiled first: cargo build -p engineering-coworker",
 
   "mcpServers": {
     "cloudflare": {
@@ -25,6 +29,24 @@
         "@modelcontextprotocol/server-filesystem",
         "/Users/alex-opensubagents/opencoworkers/subagentjobs"
       ]
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--headless=false",
+        "--no-usage-statistics"
+      ]
+    },
+    "engineering-coworker": {
+      "command": "/Users/alex-opensubagents/opencoworkers/subagentjobs/target/debug/engineering-coworker",
+      "args": [],
+      "env": {
+        "REPO_DIR": "/Users/alex-opensubagents/opencoworkers/subagentjobs",
+        "CLOUDFLARE_ACCOUNT_ID": "e6294e3ea89f8207af387d459824aaae",
+        "RUST_LOG": "info"
+      }
     }
   }
 }

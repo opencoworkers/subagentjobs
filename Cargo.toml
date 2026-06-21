@@ -9,6 +9,7 @@ members = [
   "crates/durable-store",
   "crates/indexer",
   "crates/agent-gen",
+  "crates/engineering-coworker",
 ]
 
 [workspace.package]

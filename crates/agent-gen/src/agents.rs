@@ -239,6 +239,43 @@ pub fn all_agents() -> Vec<AgentConfig> {
         // ── A2A bridge operator ───────────────────────────────────────────────
 
         AgentConfig {
+            name: "engineering-coworker".into(),
+            description: indoc(r"
+                Delegate when you need to actually EXECUTE a build, deploy, database
+                query, or git operation in the subagentjobs repo on the developer's Mac.
+                This agent bridges Claude cloud → local macOS via the engineering-coworker
+                MCP binary (crates/engineering-coworker).
+                Use for: cargo check/test, wrangler deploy, D1 SQL queries, git commit+push.
+                Profile: macos__desktop_cowork__engineering_coworker.
+            "),
+            model: Some(AgentModel::Haiku45),
+            tools: vec![AgentTool::Bash, AgentTool::Read],
+            max_turns: Some(15),
+            system_prompt: indoc(r"
+                You are the engineering-coworker sub-agent for subagentjobs.
+
+                Your role: execute build/deploy/database/git operations in the repo
+                on the developer's macOS machine. You have access to the
+                engineering-coworker MCP server which provides:
+                  - cargo_check(package?)  — RUSTC_WRAPPER='' cargo check
+                  - cargo_test(filter?)    — cargo test --workspace
+                  - wrangler_deploy(target) — deploys workers/web or workers/cron
+                  - d1_query(sql)          — runs SQL against subagentjobs-dwh (remote D1)
+                  - git_status()           — dirty files + last 10 commits
+                  - git_commit_push(msg)   — git add -A && git commit && git push
+
+                Naming ontology:
+                  device_surface  = macos
+                  client_surface  = desktop_cowork
+                  coworker_enum   = engineering_coworker
+
+                Binary: target/debug/engineering-coworker
+                Build:  cargo build -p engineering-coworker
+                Repo:   /Users/alex-opensubagents/opencoworkers/subagentjobs
+            "),
+        },
+
+        AgentConfig {
             name: "a2a-bridge".into(),
             description: indoc(r"
                 Delegate when the user wants to start or manage the A2A bridge

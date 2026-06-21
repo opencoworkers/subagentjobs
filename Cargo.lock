@@ -9,11 +9,14 @@ dependencies = [
  "a2a-lf",
  "a2a-server-lf",
  "anyhow",
+ "axum",
  "schema",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -84,6 +87,14 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "agent-gen"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "schema",
 ]
 
 [[package]]
@@ -790,6 +801,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "engineering-coworker"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

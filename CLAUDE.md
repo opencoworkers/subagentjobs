@@ -44,17 +44,30 @@ microsoft/pg_durable, microsoft/duroxide, microsoft/duroxide-pg,
 a2aproject/a2a-rs, a2aproject/a2a-js, modelcontextprotocol/typescript-sdk,
 modelcontextprotocol/rust-sdk, redis-rs/redis-rs
 
+## Naming ontology: {device_surface}__{client_surface}__{coworker_enum}
+- `macos__desktop_cowork__engineering_coworker` — Claude Desktop Cowork on macOS (= profiles/claude_desktop_cowork.json + Docker MCP profile of same name)
+- `cloud__docker_mcp__engineering_coworker` — Claude inference in Anthropic cloud using Docker MCP Toolkit catalog servers (17 servers snapshotted in Docker Desktop MCP Toolkit)
+- Rationale: code written for `cloud__*` surface must use `mcp__MCP_DOCKER__*` tools only. Code for `macos__*` surface can use npx/binary MCPs on the Mac.
+
 ## Type-safe agent system
 - `crates/schema/src/agent.rs` — `AgentConfig`, `AgentModel`, `AgentTool` enums with `validate()` + `to_yaml()`
 - `crates/agent-gen/` — binary: `cargo run -p agent-gen` regenerates `.claude/agents/*.yaml`
-- `.claude/agents/` — 7 generated agents: cargo-check, migrator, deployer, crawler, vendor-sync, indexer, a2a-bridge
+- `.claude/agents/` — 8 generated agents: cargo-check, migrator, deployer, crawler, vendor-sync, indexer, engineering-coworker, a2a-bridge
 - `scripts/agents/schema.ts` / `agents.ts` / `generate.ts` — TypeScript+Zod mirror; `npx ts-node scripts/agents/generate.ts`
 
 ## macOS Claude Desktop profiles
 - `profiles/claude_desktop_chat.json` — minimal, no MCP servers (Chat tab)
-- `profiles/claude_desktop_cowork.json` — Cloudflare + GitHub + filesystem (Cowork tab)
+- `profiles/claude_desktop_cowork.json` — surface: macos__desktop_cowork__engineering_coworker; MCPs: Cloudflare + GitHub + filesystem + chrome-devtools (npx) + engineering-coworker (Rust binary)
 - `profiles/claude_desktop_code.json` — full suite: + postgres + subagentjobs-mcp dogfood (Code tab)
 - `profiles/switch-profile.sh chat|cowork|code` — swap config + restart Claude Desktop
+- **Build engineering-coworker binary first**: `cargo build -p engineering-coworker`
+
+## engineering-coworker MCP server (crates/engineering-coworker)
+- Rust MCP server (rmcp, stdio transport) that exposes cargo/wrangler/git/D1 tools
+- Tools: `cargo_check`, `cargo_test`, `wrangler_deploy`, `d1_query`, `git_status`, `git_commit_push`
+- For Claude cloud (me) to EXECUTE operations on the developer's Mac — not just suggest code
+- Binary: `target/debug/engineering-coworker` (after `cargo build -p engineering-coworker`)
+- Docker MCP profile: `macos__desktop_cowork__engineering_coworker` (17 catalog servers snapshotted)
 
 ## Active task session (schema v0.1.0)
 ```json

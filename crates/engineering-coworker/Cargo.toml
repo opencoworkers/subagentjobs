@@ -1,0 +1,20 @@
+[package]
+name = "engineering-coworker"
+edition.workspace = true
+rust-version.workspace = true
+description = "MCP server: Rust sub-agent for the macos__desktop_cowork__engineering_coworker profile. Exposes cargo, wrangler, git, and D1 operations as MCP tools so Claude (cloud) can actually execute them on the developer's Mac."
+
+[[bin]]
+name = "engineering-coworker"
+path = "src/main.rs"
+
+[dependencies]
+rmcp    = { version = "1", features = ["server", "transport-io", "schemars", "macros"] }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+schemars      = { workspace = true }
+tokio         = { workspace = true }
+tracing       = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow        = { workspace = true }
+clap          = { workspace = true }
