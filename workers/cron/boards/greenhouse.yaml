@@ -1,0 +1,52 @@
+# Greenhouse job board slugs
+# Used by workers/cron/src/index.ts — platform defaults to "greenhouse" in dim_board
+# Slugs with no-hyphen variants: resolved via fuzzy probe (see probe_boards.py)
+platform: greenhouse
+boards:
+  # ── original validated list ──────────────────────────────────────────────
+  - asana
+  - athena
+  - aura
+  - block
+  - brainlabs
+  - brex
+  - chronograph
+  - circleci
+  - coinbase
+  - descript
+  - doctolib
+  - figma
+  - gitlab
+  - gradial
+  - intercom
+  - jamf
+  - jetbrains
+  - juno
+  - lex
+  - lokalise
+  - lovable
+  - lyft
+  - n26
+  - otter
+  - postman
+  - praxis
+  - quantium
+  - smartsheet
+  - stripe
+  - tines
+  - warp
+  - workato
+  - zencoder
+  # ── resolved from unknown list (fuzzy probe) ─────────────────────────────
+  - apollo            # apollo (0 jobs — board exists, hiring may be paused)
+  - cartahealthcare   # carta-healthcare
+  - elationhealth     # elation-health
+  - futurehouse       # futurehouse (0 jobs — board exists)
+  - grafanalabs       # grafana
+  - hubspot           # hubspot (0 jobs — board exists)
+  - hume              # hume (0 jobs — board exists)
+  - pendo             # pendo-qa
+  - prathaminternational  # pratham-international
+  - triplewhale       # triple-whale
+  - twilio            # twilio-qa
+  - youcom            # you-dot-com

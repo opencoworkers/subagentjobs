@@ -1,0 +1,10 @@
+# Lever job board slugs
+# Used by workers/cron/src/index.ts — must be seeded in dim_board with platform='lever'
+platform: lever
+boards:
+  # ── original validated list ──────────────────────────────────────────────
+  - cred
+  - matillion
+  - spotify
+  # ── resolved from unknown list (fuzzy probe) ─────────────────────────────
+  - charmindustrial   # charm-industrial
