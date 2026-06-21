@@ -1,0 +1,57 @@
+# Vendor repos indexed locally for code search and context.
+# Read-only: never commit these dirs. Populate with:
+#   ./scripts/setup-vendors.sh
+#
+# Each repo is cloned to vendors/{org}/{repo} and indexed into:
+#   fact_filesystem  — one row per file (SHA256, extension, size)
+#   dim_file_ast     — symbols, imports, exports per file
+
+[[vendor]]
+org         = "Kuberwastaken"
+repo        = "claurst"
+url         = "https://github.com/Kuberwastaken/claurst"
+branch      = "main"
+description = "Rust rewrite of Claude Code — 9-crate workspace, 33 tools, ratatui TUI, multi-provider API"
+
+[[vendor]]
+org         = "modelcontextprotocol"
+repo        = "servers"
+url         = "https://github.com/modelcontextprotocol/servers"
+branch      = "main"
+description = "Official MCP reference servers (filesystem, git, postgres, brave-search, etc.)"
+
+[[vendor]]
+org         = "opensubagents"
+repo        = "subagentjobs"
+url         = "https://github.com/opensubagents/subagentjobs"
+branch      = "main"
+description = "This repo — self-indexed so the MCP server can search its own codebase"
+
+[[vendor]]
+org         = "microsoft"
+repo        = "pg_durable"
+url         = "https://github.com/microsoft/pg_durable"
+branch      = "main"
+description = "Durable execution inside PostgreSQL via pgrx — replaces hand-rolled task-state-machine FSM"
+
+[[vendor]]
+org         = "microsoft"
+repo        = "duroxide"
+url         = "https://github.com/microsoft/duroxide"
+branch      = "main"
+description = "Rust durable task framework (orchestration runtime) used by pg_durable"
+
+[[vendor]]
+org         = "microsoft"
+repo        = "duroxide-pg"
+url         = "https://github.com/microsoft/duroxide-pg"
+branch      = "main"
+description = "PostgreSQL-backed state provider for duroxide — persists instances/history in duroxide.* schema"
+
+# Add more repos as needed:
+# [[vendor]]
+# org     = "ggerganov"
+# repo    = "llama.cpp"
+# url     = "https://github.com/ggerganov/llama.cpp"
+# branch  = "master"
+# description = "Local LLM inference — CUDA/Metal/CPU backends, GGUF format"

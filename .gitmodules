@@ -1,0 +1,40 @@
+# Git submodules — vendor repos cloned read-only for local indexing.
+# Populate:  git submodule update --init --depth 1
+# Update:    git submodule update --remote --depth 1
+# Or use:    ./scripts/setup-vendors.sh --update
+
+[submodule "vendors/Kuberwastaken/claurst"]
+	path   = vendors/Kuberwastaken/claurst
+	url    = https://github.com/Kuberwastaken/claurst
+	branch = main
+	shallow = true
+
+[submodule "vendors/modelcontextprotocol/servers"]
+	path   = vendors/modelcontextprotocol/servers
+	url    = https://github.com/modelcontextprotocol/servers
+	branch = main
+	shallow = true
+
+[submodule "vendors/opensubagents/subagentjobs"]
+	path   = vendors/opensubagents/subagentjobs
+	url    = https://github.com/opensubagents/subagentjobs
+	branch = main
+	shallow = true
+
+[submodule "vendors/microsoft/pg_durable"]
+	path   = vendors/microsoft/pg_durable
+	url    = https://github.com/microsoft/pg_durable
+	branch = main
+	shallow = true
+
+[submodule "vendors/microsoft/duroxide"]
+	path   = vendors/microsoft/duroxide
+	url    = https://github.com/microsoft/duroxide
+	branch = main
+	shallow = true
+
+[submodule "vendors/microsoft/duroxide-pg"]
+	path   = vendors/microsoft/duroxide-pg
+	url    = https://github.com/microsoft/duroxide-pg
+	branch = main
+	shallow = true

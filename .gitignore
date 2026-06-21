@@ -3,3 +3,9 @@ target/
 *.local
 sqlx-data.json
 .sccache/
+
+# Vendor repos — declared in .gitmodules / .vendors.toml, not version-controlled.
+# Populate with: git submodule update --init --depth 1
+# Or:            ./scripts/setup-vendors.sh
+vendors/*/*/
+!vendors/*/.gitkeep
