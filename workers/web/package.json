@@ -10,7 +10,7 @@
     "hono": "^4"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4",
+    "@cloudflare/workers-types": "^4.20260620.1",
     "typescript": "^5",
     "wrangler": "^3"
   }
