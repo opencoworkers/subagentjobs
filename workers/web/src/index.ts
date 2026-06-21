@@ -104,6 +104,99 @@ export default {
       });
     }
 
+    // ── /.well-known/agent-card.json — A2A discovery ─────────────────────────
+    // External A2A agents (Gemini, Claude, etc.) fetch this to learn what
+    // skills this agent offers before sending tasks/send requests.
+    // Spec: https://a2aproject.github.io/A2A/specification/#agent-card
+    if (u.pathname === '/.well-known/agent-card.json') {
+      const card = {
+        name: 'subagentjobs',
+        version: '0.1.0',
+        description: 'AI job board aggregator. Search 49 curated job boards for AI/agent/data engineering roles.',
+        url: 'https://subagentjobs.com',
+        documentationUrl: 'https://subagentjobs.com/api/jobs',
+        defaultInputModes:  ['text/plain', 'application/json'],
+        defaultOutputModes: ['application/json'],
+        capabilities: {
+          streaming: false,
+          pushNotifications: false,
+          stateTransitionHistory: false,
+        },
+        skills: [
+          {
+            id: 'search_jobs',
+            name: 'Search Jobs',
+            description: 'Full-text search across 49 AI/agent job boards. Filter by role, company, location type.',
+            tags: ['jobs', 'career', 'ai', 'agents', 'data-engineering'],
+            examples: [
+              'Find remote data engineer roles',
+              'Show ML engineer positions at Anthropic',
+              'Search for agent engineer jobs',
+            ],
+            inputModes:  ['text/plain', 'application/json'],
+            outputModes: ['application/json'],
+          },
+        ],
+      };
+      return Response.json(card, { headers: cors });
+    }
+
+    // ── POST /a2a — A2A tasks/send ────────────────────────────────────────────
+    // Accepts A2A JSON-RPC 2.0 tasks/send requests.
+    // Transport: HTTP+JSON (works in CF Workers; gRPC is Node.js-only).
+    //
+    // Minimal wire format:
+    //   POST /a2a  { jsonrpc:"2.0", id:N, method:"tasks/send",
+    //                params:{ id:"<uuid>", message:{ role:"user",
+    //                  parts:[{ type:"text", text:"<query>" }] } } }
+    //
+    // Returns a completed A2A Task artifact containing matching job JSON.
+    if (u.pathname === '/a2a' && req.method === 'POST') {
+      let body: any;
+      try { body = await req.json(); } catch { body = {}; }
+
+      const taskId   = body?.params?.id ?? crypto.randomUUID();
+      const text: string = (
+        body?.params?.message?.parts?.find((p: any) => p.type === 'text')?.text ?? ''
+      ).trim();
+
+      if (!text) {
+        return Response.json({
+          jsonrpc: '2.0', id: body?.id ?? null,
+          error: { code: -32602, message: 'message.parts[0].text is required' },
+        }, { status: 400, headers: cors });
+      }
+
+      // Reuse existing search query logic
+      const q = text.toLowerCase();
+      const { results } = await env.DB
+        .prepare(
+          `SELECT job_post_id,title,location_name,location_type,
+                  company_name,absolute_url,first_published
+           FROM fact_job_posting
+           WHERE lower(title) LIKE ? AND evicted_at IS NULL
+           ORDER BY company_name,title LIMIT 20`
+        )
+        .bind('%' + q + '%')
+        .all();
+
+      return Response.json({
+        jsonrpc: '2.0',
+        id: body?.id ?? null,
+        result: {
+          id: taskId,
+          status: { state: 'completed' },
+          artifacts: [{
+            name: 'search_results',
+            parts: [{
+              type: 'data',
+              data: { query: text, total: results.length, jobs: results },
+            }],
+          }],
+        },
+      }, { headers: cors });
+    }
+
     // ── / dashboard ───────────────────────────────────────────────────────────
     const [boards, byType, n, topSkills] = await Promise.all([
       env.DB.prepare(`SELECT board_token,name,platform,job_count,last_crawled_at

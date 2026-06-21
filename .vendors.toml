@@ -48,6 +48,41 @@ url         = "https://github.com/microsoft/duroxide-pg"
 branch      = "main"
 description = "PostgreSQL-backed state provider for duroxide — persists instances/history in duroxide.* schema"
 
+[[vendor]]
+org         = "a2aproject"
+repo        = "a2a-rs"
+url         = "https://github.com/a2aproject/a2a-rs"
+branch      = "main"
+description = "A2A Rust SDK (packages: a2a-lf, a2a-client-lf, a2a-server-lf) — core types, axum HTTP server, async client. Not on crates.io yet; depend via git."
+
+[[vendor]]
+org         = "a2aproject"
+repo        = "a2a-js"
+url         = "https://github.com/a2aproject/a2a-js"
+branch      = "main"
+description = "@a2a-js/sdk v0.3.13 — Server & Client SDK for A2A. JSON-RPC + HTTP+JSON transports work in Cloudflare Workers; gRPC requires Node.js and is blocked."
+
+[[vendor]]
+org         = "modelcontextprotocol"
+repo        = "typescript-sdk"
+url         = "https://github.com/modelcontextprotocol/typescript-sdk"
+branch      = "main"
+description = "@modelcontextprotocol/sdk v1.29.0 — official TypeScript MCP SDK. Hono adapter makes it compatible with Cloudflare Workers."
+
+[[vendor]]
+org         = "modelcontextprotocol"
+repo        = "rust-sdk"
+url         = "https://github.com/modelcontextprotocol/rust-sdk"
+branch      = "main"
+description = "Official Rust MCP SDK — alternative to rmcp (which we currently use). Compare approaches before switching."
+
+[[vendor]]
+org         = "redis-rs"
+repo        = "redis-rs"
+url         = "https://github.com/redis-rs/redis-rs"
+branch      = "main"
+description = "Rust Redis client — v1.x async API with tokio-comp + connection-manager + json features. Examine Pipeline::query_async usage patterns here."
+
 # Add more repos as needed:
 # [[vendor]]
 # org     = "ggerganov"
