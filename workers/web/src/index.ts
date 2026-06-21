@@ -29,20 +29,20 @@ export default {
                FROM fact_job_posting f
                JOIN bridge_job_skill b ON f.job_post_id=b.job_post_id
                JOIN dim_skill s        ON b.skill_key=s.skill_key
-               WHERE s.name=? ORDER BY f.company_name,f.title`;
+               WHERE s.name=? AND f.evicted_at IS NULL ORDER BY f.company_name,f.title`;
         params.push(skill);
       } else if (co) {
         sql = `SELECT job_post_id,title,location_name,location_type,company_name,absolute_url,first_published
-               FROM fact_job_posting WHERE company_name=? ORDER BY title`;
+               FROM fact_job_posting WHERE company_name=? AND evicted_at IS NULL ORDER BY title`;
         params.push(co);
       } else if (q) {
         // full-text keyword search (LIKE on title)
         sql = `SELECT job_post_id,title,location_name,location_type,company_name,absolute_url,first_published
-               FROM fact_job_posting WHERE lower(title) LIKE ? ORDER BY company_name,title`;
+               FROM fact_job_posting WHERE lower(title) LIKE ? AND evicted_at IS NULL ORDER BY company_name,title`;
         params.push('%' + q + '%');
       } else {
         sql = `SELECT job_post_id,title,location_name,location_type,company_name,absolute_url,first_published
-               FROM fact_job_posting ORDER BY company_name,title`;
+               FROM fact_job_posting WHERE evicted_at IS NULL ORDER BY company_name,title`;
       }
 
       const stmt = params.length ? env.DB.prepare(sql).bind(...params) : env.DB.prepare(sql);
@@ -56,8 +56,8 @@ export default {
         env.DB.prepare(`SELECT board_token,name,platform,job_count,last_crawled_at
                         FROM dim_board WHERE job_count>0 ORDER BY job_count DESC`).all(),
         env.DB.prepare(`SELECT location_type,COUNT(*) as c FROM fact_job_posting
-                        GROUP BY location_type ORDER BY c DESC`).all(),
-        env.DB.prepare(`SELECT COUNT(*) as n FROM fact_job_posting`).first<{ n: number }>(),
+                        WHERE evicted_at IS NULL GROUP BY location_type ORDER BY c DESC`).all(),
+        env.DB.prepare(`SELECT COUNT(*) as n FROM fact_job_posting WHERE evicted_at IS NULL`).first<{ n: number }>(),
       ]);
       return Response.json(
         { total: n!.n, boards: boards.results, by_type: byType.results },
@@ -69,13 +69,18 @@ export default {
     if (u.pathname === '/api/graph') {
       const [nodes, edges] = await Promise.all([
         env.DB.prepare(`SELECT s.name,s.category,COUNT(*) as v
-                        FROM bridge_job_skill b JOIN dim_skill s ON b.skill_key=s.skill_key
+                        FROM bridge_job_skill b
+                        JOIN dim_skill s ON b.skill_key=s.skill_key
+                        JOIN fact_job_posting f ON b.job_post_id=f.job_post_id
+                        WHERE f.evicted_at IS NULL
                         GROUP BY s.skill_key ORDER BY v DESC`).all(),
         env.DB.prepare(`SELECT s1.name as source,s2.name as target,COUNT(*) as w
                         FROM bridge_job_skill a
                         JOIN bridge_job_skill b ON a.job_post_id=b.job_post_id AND a.skill_key<b.skill_key
                         JOIN dim_skill s1 ON a.skill_key=s1.skill_key
                         JOIN dim_skill s2 ON b.skill_key=s2.skill_key
+                        JOIN fact_job_posting f ON a.job_post_id=f.job_post_id
+                        WHERE f.evicted_at IS NULL
                         GROUP BY a.skill_key,b.skill_key HAVING w>=15
                         ORDER BY w DESC LIMIT 80`).all(),
       ]);
@@ -84,7 +89,7 @@ export default {
 
     // ── /jobs/:id — direct lookup by job_post_id ──────────────────────────────
     if (u.pathname.startsWith('/jobs/')) {
-      const id = u.pathname.slice(7);
+      const id = u.pathname.slice(6); // '/jobs/' is 6 chars
       const j = await env.DB
         .prepare(`SELECT job_post_id,title,location_name,location_type,company_name,absolute_url,first_published
                   FROM fact_job_posting WHERE job_post_id=?`)

@@ -7,5 +7,10 @@ compatibility_date = "2024-09-23"
 MCP_URL = "https://subagentjobs-etl.alex-e62.workers.dev"
 GITHUB_REPO = "opencoworkers/subagentjobs"
 
+[[d1_databases]]
+binding = "DB"
+database_name = "subagentjobs-dwh"
+database_id = "305ed041-5dae-44e5-ab1f-8a63efd8627e"
+
 [triggers]
 crons = ["0 */6 * * *"]
