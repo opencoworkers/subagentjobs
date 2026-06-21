@@ -38,11 +38,23 @@ CLOUDFLARE_ACCOUNT_ID=e6294e3ea89f8207af387d459824aaae
 - `fact_repositories` — repos with stars/language/archived, FK to dim_vendor for cloned repos
 - `dim_packages`      — npm + crates packages incl. `last_updated_at`, `is_archived`, `is_deprecated`
 
-## .vendors.toml repos (11 entries)
-Kuberwastaken/claurst, modelcontextprotocol/servers, opensubagents/subagentjobs,
+## .vendors.toml repos (11 entries, all cloned to vendors/)
+Kuberwastaken/claurst, modelcontextprotocol/servers, opencoworkers/subagentjobs,
 microsoft/pg_durable, microsoft/duroxide, microsoft/duroxide-pg,
 a2aproject/a2a-rs, a2aproject/a2a-js, modelcontextprotocol/typescript-sdk,
 modelcontextprotocol/rust-sdk, redis-rs/redis-rs
+
+## Type-safe agent system
+- `crates/schema/src/agent.rs` — `AgentConfig`, `AgentModel`, `AgentTool` enums with `validate()` + `to_yaml()`
+- `crates/agent-gen/` — binary: `cargo run -p agent-gen` regenerates `.claude/agents/*.yaml`
+- `.claude/agents/` — 7 generated agents: cargo-check, migrator, deployer, crawler, vendor-sync, indexer, a2a-bridge
+- `scripts/agents/schema.ts` / `agents.ts` / `generate.ts` — TypeScript+Zod mirror; `npx ts-node scripts/agents/generate.ts`
+
+## macOS Claude Desktop profiles
+- `profiles/claude_desktop_chat.json` — minimal, no MCP servers (Chat tab)
+- `profiles/claude_desktop_cowork.json` — Cloudflare + GitHub + filesystem (Cowork tab)
+- `profiles/claude_desktop_code.json` — full suite: + postgres + subagentjobs-mcp dogfood (Code tab)
+- `profiles/switch-profile.sh chat|cowork|code` — swap config + restart Claude Desktop
 
 ## Active task session (schema v0.1.0)
 ```json
@@ -56,13 +68,16 @@ modelcontextprotocol/rust-sdk, redis-rs/redis-rs
       {"schema_version":"0.1.0","content":"Update .vendors.toml with a2a-rs, a2a-js, mcp/typescript-sdk, mcp/rust-sdk, redis-rs","status":"completed","priority":"high","kind":{"kind":"todo"}},
       {"schema_version":"0.1.0","content":"Wire crates/a2a-bridge: main.rs with axum + a2a-server-lf stub, AgentCard endpoint, tasks/send→MCP stdio proxy","status":"completed","priority":"high","kind":{"kind":"todo"}},
       {"schema_version":"0.1.0","content":"Add A2A routes to workers/web: GET /.well-known/agent-card.json + POST /a2a (tasks/send, HTTP+JSON)","status":"completed","priority":"high","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"Add @a2a-js/sdk + @modelcontextprotocol/hono to workers/web/package.json","status":"completed","priority":"medium","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"cargo check --workspace after axum + a2a-rs wiring","status":"pending","priority":"high","kind":{"kind":"shell_command","command":"RUSTC_WRAPPER='' cargo check --workspace"}},
-      {"schema_version":"0.1.0","content":"Run migration 006 remotely: wrangler d1 execute subagentjobs-dwh --remote --file crates/durable-store/migrations/postgres/006_ecosystem_catalog.sql","status":"pending","priority":"medium","kind":{"kind":"shell_command","command":"wrangler d1 execute subagentjobs-dwh --remote --file crates/durable-store/migrations/postgres/006_ecosystem_catalog.sql"}},
-      {"schema_version":"0.1.0","content":"Deploy updated CF Worker (A2A routes) via wrangler deploy","status":"pending","priority":"medium","kind":{"kind":"shell_command","command":"cd workers/web && wrangler deploy"}},
-      {"schema_version":"0.1.0","content":"Clone new vendor repos: a2a-rs, a2a-js, typescript-sdk, rust-sdk, redis-rs via setup-vendors.sh","status":"pending","priority":"low","kind":{"kind":"shell_command","command":"./scripts/setup-vendors.sh"}},
+      {"schema_version":"0.1.0","content":"Add @a2a-js/sdk to workers/web/package.json (removed @modelcontextprotocol/hono — no v1 published)","status":"completed","priority":"medium","kind":{"kind":"todo"}},
+      {"schema_version":"0.1.0","content":"cargo check --workspace after axum + a2a-rs wiring","status":"completed","priority":"high","kind":{"kind":"shell_command","command":"RUSTC_WRAPPER='' cargo check --workspace"}},
+      {"schema_version":"0.1.0","content":"Deploy updated CF Worker (A2A routes) via wrangler deploy","status":"completed","priority":"medium","kind":{"kind":"shell_command","command":"cd workers/web && wrangler deploy"}},
+      {"schema_version":"0.1.0","content":"Clone all vendor repos via setup-vendors.sh (11 repos in vendors/)","status":"completed","priority":"low","kind":{"kind":"shell_command","command":"./scripts/setup-vendors.sh --update"}},
+      {"schema_version":"0.1.0","content":"Type-safe sub-agent system: crates/agent-gen + scripts/agents/ + .claude/agents/*.yaml (7 agents)","status":"completed","priority":"high","kind":{"kind":"todo"}},
+      {"schema_version":"0.1.0","content":"macOS Claude Desktop profiles: chat/cowork/code + profiles/switch-profile.sh","status":"completed","priority":"medium","kind":{"kind":"todo"}},
+      {"schema_version":"0.1.0","content":"Commit and push all changes (6e709b3)","status":"completed","priority":"medium","kind":{"kind":"shell_command","command":"git add -A && git commit && git push"}},
+      {"schema_version":"0.1.0","content":"Apply migration 006 to Postgres (not D1 — Postgres-only schema). Requires DATABASE_URL env var pointing to the Postgres instance. Run: psql $DATABASE_URL -f crates/durable-store/migrations/postgres/006_ecosystem_catalog.sql","status":"pending","priority":"medium","kind":{"kind":"migration","file":"006_ecosystem_catalog.sql"}},
       {"schema_version":"0.1.0","content":"Implement AgentExecutor trait in a2a-bridge once a2a-server-lf API stabilises (replaces axum stubs)","status":"pending","priority":"low","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"Commit and push all ecosystem wiring changes","status":"pending","priority":"medium","kind":{"kind":"shell_command","command":"git add -A && git commit -m 'feat(ecosystem): A2A wiring, vendor catalog, migration 006' && git push"}}
+      {"schema_version":"0.1.0","content":"Run indexer over vendor repos: cargo run -p indexer -- --all","status":"pending","priority":"low","kind":{"kind":"shell_command","command":"cargo run -p indexer -- --all"}}
     ]
   }
 }
