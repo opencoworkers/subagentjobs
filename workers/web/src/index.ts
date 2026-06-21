@@ -2,17 +2,12 @@
  * subagentjobs-web
  * Design: terminal aesthetic, matches coworkers.subagentknowledge.com
  * Mobile: optimised for iPhone 16 Pro (430px, Dynamic Island safe-areas)
- * Perf:   initial payload <50KB — jobs+graph fetched client-side on demand
+ * Perf:   initial payload ~20KB — jobs lazy-fetched, ECharts lazy-loaded
  */
 
 export interface Env {
   DB: D1Database;
 }
-
-const sha = async (s: string): Promise<string> => {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-  return [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, '0')).join('');
-};
 
 const cors = { 'access-control-allow-origin': '*' } as const;
 
@@ -24,35 +19,35 @@ export default {
     if (u.pathname === '/api/jobs') {
       const co    = u.searchParams.get('company');
       const skill = u.searchParams.get('skill');
+      const q     = u.searchParams.get('q')?.toLowerCase() ?? '';
       let sql: string;
       const params: string[] = [];
 
       if (skill) {
         sql = `SELECT DISTINCT f.job_post_id,f.title,f.location_name,f.location_type,
-                      f.company_name,f.first_published,f.updated_at
+                      f.company_name,f.absolute_url,f.first_published
                FROM fact_job_posting f
                JOIN bridge_job_skill b ON f.job_post_id=b.job_post_id
                JOIN dim_skill s        ON b.skill_key=s.skill_key
-               WHERE s.name=? ORDER BY f.company_name,f.title LIMIT 200`;
+               WHERE s.name=? ORDER BY f.company_name,f.title`;
         params.push(skill);
       } else if (co) {
-        sql = `SELECT job_post_id,title,location_name,location_type,company_name,first_published,updated_at
-               FROM fact_job_posting WHERE company_name=? ORDER BY title LIMIT 200`;
+        sql = `SELECT job_post_id,title,location_name,location_type,company_name,absolute_url,first_published
+               FROM fact_job_posting WHERE company_name=? ORDER BY title`;
         params.push(co);
+      } else if (q) {
+        // full-text keyword search (LIKE on title)
+        sql = `SELECT job_post_id,title,location_name,location_type,company_name,absolute_url,first_published
+               FROM fact_job_posting WHERE lower(title) LIKE ? ORDER BY company_name,title`;
+        params.push('%' + q + '%');
       } else {
-        sql = `SELECT job_post_id,title,location_name,location_type,company_name,first_published,updated_at
-               FROM fact_job_posting ORDER BY company_name,title LIMIT 500`;
+        sql = `SELECT job_post_id,title,location_name,location_type,company_name,absolute_url,first_published
+               FROM fact_job_posting ORDER BY company_name,title`;
       }
 
       const stmt = params.length ? env.DB.prepare(sql).bind(...params) : env.DB.prepare(sql);
       const { results } = await stmt.all();
-      const jobs = await Promise.all(
-        (results as any[]).map(async j => ({
-          ...j,
-          sha256: await sha(j.job_post_id + ':' + j.title + ':' + j.updated_at),
-        }))
-      );
-      return Response.json({ jobs, total: jobs.length }, { headers: cors });
+      return Response.json({ jobs: results, total: results.length }, { headers: cors });
     }
 
     // ── /api/stats ────────────────────────────────────────────────────────────
@@ -87,28 +82,24 @@ export default {
       return Response.json({ nodes: nodes.results, edges: edges.results }, { headers: cors });
     }
 
-    // ── /jobs/:hash ───────────────────────────────────────────────────────────
+    // ── /jobs/:id — direct lookup by job_post_id ──────────────────────────────
     if (u.pathname.startsWith('/jobs/')) {
-      const h = u.pathname.slice(7);
-      const { results } = await env.DB.prepare(
-        `SELECT job_post_id,title,location_name,location_type,company_name,first_published,updated_at
-         FROM fact_job_posting`
-      ).all();
-      for (const j of results as any[]) {
-        if (await sha(j.job_post_id + ':' + j.title + ':' + j.updated_at) === h) {
-          const skills = await env.DB
-            .prepare(`SELECT s.name,s.category FROM bridge_job_skill b
-                      JOIN dim_skill s ON b.skill_key=s.skill_key WHERE b.job_post_id=?`)
-            .bind(j.job_post_id).all();
-          return new Response(detail(j, h, skills.results as any[]), {
-            headers: { 'content-type': 'text/html;charset=utf-8' },
-          });
-        }
-      }
-      return new Response('Not found', { status: 404 });
+      const id = u.pathname.slice(7);
+      const j = await env.DB
+        .prepare(`SELECT job_post_id,title,location_name,location_type,company_name,absolute_url,first_published
+                  FROM fact_job_posting WHERE job_post_id=?`)
+        .bind(id).first<any>();
+      if (!j) return new Response('Not found', { status: 404 });
+      const skills = await env.DB
+        .prepare(`SELECT s.name,s.category FROM bridge_job_skill b
+                  JOIN dim_skill s ON b.skill_key=s.skill_key WHERE b.job_post_id=?`)
+        .bind(id).all();
+      return new Response(detail(j, skills.results as any[]), {
+        headers: { 'content-type': 'text/html;charset=utf-8' },
+      });
     }
 
-    // ── / dashboard (lightweight — no jobs embedded) ──────────────────────────
+    // ── / dashboard ───────────────────────────────────────────────────────────
     const [boards, byType, n, topSkills] = await Promise.all([
       env.DB.prepare(`SELECT board_token,name,platform,job_count,last_crawled_at
                       FROM dim_board WHERE job_count>0 ORDER BY job_count DESC`).all(),
@@ -136,8 +127,7 @@ html,body{margin:0;padding:0;
   background:#0a0a0a;color:#d4d4d4;-webkit-font-smoothing:antialiased;font-size:13px}
 #hdr{padding:10px 16px;
   padding-top:calc(10px + env(safe-area-inset-top));
-  border-bottom:1px solid #1f1f1f;
-  display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid #1f1f1f;display:flex;align-items:center;gap:12px;
   position:sticky;top:0;
   background:rgba(10,10,10,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:20}
 #hdr h1{margin:0;font-size:14px;font-weight:600;letter-spacing:1px;color:#f4f4f4}
@@ -157,7 +147,7 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
 .sh{display:flex;align-items:baseline;gap:10px;padding:6px 0;
   border-bottom:1px solid #1f1f1f;margin-bottom:10px}
 .sl{font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;color:#51c4ff}
-.sl-g{color:#7bd88f}.sl-a{color:#f4a73b}.sl-m{color:#6a6a6a;font-weight:400}
+.sl-m{color:#6a6a6a;font-weight:400}
 .stag{font-size:9px;padding:2px 8px;border:1px solid #2a2a2a;color:#6a6a6a;
   text-transform:uppercase;letter-spacing:.5px;cursor:pointer;
   transition:border-color .15s,color .15s;user-select:none;display:inline-block}
@@ -177,7 +167,6 @@ function main(total: number, boards: any[], byType: any[], topSkills: any[]): st
     '<div class="bcard" onclick="filterCo(' + JSON.stringify(b.name || b.board_token) + ')">' +
       '<div class="bcnt">' + b.job_count + '</div>' +
       '<div class="bnm">' + esc(b.name || b.board_token) + '</div>' +
-      '<div class="bplat">' + (b.platform || 'greenhouse') + '</div>' +
     '</div>'
   ).join('');
 
@@ -188,66 +177,80 @@ function main(total: number, boards: any[], byType: any[], topSkills: any[]): st
       s.name + ' <span style="opacity:.45">' + s.v + '</span></span>';
   }).join('');
 
-  // Client-side JS: NO template literals — avoids TS template-in-template escaping
+  // Client JS — no template literals to avoid TS escaping issues
   const clientJs = [
     'var allJobs=[],graphLoaded=false;',
 
+    // Tab switching
     'function showTab(name,el){',
     '  document.querySelectorAll("nav a").forEach(function(a){a.classList.remove("active");});',
     '  el.classList.add("active");',
     '  ["overview","jobs","graph"].forEach(function(t){',
-    '    var s=document.getElementById("tab-"+t);',
-    '    if(s)s.style.display=(t===name?"":"none");',
+    '    var s=document.getElementById("tab-"+t);if(s)s.style.display=(t===name?"":"none");',
     '  });',
     '  if(name==="jobs"&&!allJobs.length)loadJobs();',
     '  if(name==="graph"&&!graphLoaded)loadGraph();',
     '}',
 
+    // Load all jobs (no limit)
     'function loadJobs(){',
+    '  var tbl=document.getElementById("job-table");',
     '  fetch("/api/jobs").then(function(r){return r.json();}).then(function(d){',
     '    allJobs=d.jobs;',
-    '    var el=document.getElementById("job-count");',
-    '    if(el)el.textContent=d.jobs.length;',
-    '    renderJobs(d.jobs);',
-    '  }).catch(function(){',
-    '    var el=document.getElementById("job-table");',
-    '    if(el)el.innerHTML=\'<div class="err">failed to load positions</div>\';',
+    '    var cnt=document.getElementById("job-count");if(cnt)cnt.textContent=d.total;',
+    '    renderJobs(allJobs);',
+    '  }).catch(function(e){',
+    '    tbl.innerHTML=\'<div class="err">failed to load — \'+e+\'</div>\';',
     '  });',
     '}',
 
+    // Render: compact 2-column rows — company + role on one line, location+type subtitle
     'function renderJobs(jobs){',
     '  var el=document.getElementById("job-table");',
-    '  if(!jobs.length){el.innerHTML=\'<div class="loading">no results</div>\';return;}',
-    '  var rows=jobs.map(function(j){',
-    '    var ty=j.location_type==="Remote"?\'<span class="ty-r">remote</span>\':',
-    '           j.location_type==="On-site"?\'<span class="ty-o">on-site</span>\':',
-    '           \'<span class="ty-cell">\'+(j.location_type||"—")+"</span>";',
+    '  if(!jobs.length){el.innerHTML=\'<p class="loading">no results</p>\';return;}',
+    '  var html=\'<table><thead><tr><th>company / role</th><th class="th-ty">type</th></tr></thead><tbody>\';',
+    '  for(var i=0;i<jobs.length;i++){',
+    '    var j=jobs[i];',
     '    var lo=(j.location_name||"").split("|")[0].split(";")[0].trim();',
-    '    return \'<tr onclick="location.href=\\"/jobs/\'+j.sha256+\'\\"">\'+',
-    '      \'<td class="co-cell">\'+j.company_name+\'</td>\'+',
-    '      \'<td class="ti-cell">\'+j.title+\'</td>\'+',
-    '      \'<td class="lo-cell">\'+lo+\'</td>\'+',
-    '      \'<td>\'+ty+\'</td></tr>\';',
-    '  }).join("");',
-    '  el.innerHTML=\'<table><thead><tr><th>company</th><th>role</th><th>location</th><th>type</th></tr></thead><tbody>\'+rows+\'</tbody></table>\';',
+    '    var ty=j.location_type||"";',
+    '    var tycls=ty==="Remote"?"ty-r":ty==="On-site"?"ty-o":"ty-cell";',
+    '    var tyshort=ty==="Remote"?"remote":ty==="On-site"?"on-site":ty||"—";',
+    '    html+=\'<tr onclick="go(\'+j.job_post_id+\')">\'+',
+    '      \'<td class="main-cell"><span class="co-cell">\'+j.company_name+\'</span>\'+',
+    '      \'<span class="ti-cell">\'+j.title+\'</span>\'+',
+    '      (lo?\'<span class="lo-cell">\'+lo+\'</span>\':"")+',
+    '      \'</td>\'+',
+    '      \'<td class="ty-col"><span class="\'+tycls+\'">\'+tyshort+\'</span></td>\'+',
+    '      \'</tr>\';',
+    '  }',
+    '  html+=\'</tbody></table>\';',
+    '  el.innerHTML=html;',
     '}',
 
+    // Navigate to detail
+    'function go(id){location.href="/jobs/"+id;}',
+
+    // Client-side filter (phrase match)
     'function filterJobs(q){',
-    '  if(!q){renderJobs(allJobs);return;}',
+    '  var cnt=document.getElementById("job-count");',
+    '  if(!q){if(cnt)cnt.textContent=allJobs.length;renderJobs(allJobs);return;}',
     '  var t=q.toLowerCase();',
-    '  renderJobs(allJobs.filter(function(j){',
+    '  var res=allJobs.filter(function(j){',
     '    return(j.title+" "+j.company_name+" "+(j.location_name||"")+" "+(j.location_type||"")).toLowerCase().indexOf(t)>=0;',
-    '  }));',
+    '  });',
+    '  if(cnt)cnt.textContent=res.length;',
+    '  renderJobs(res);',
     '}',
 
+    // Filter by company (from board card click)
     'function filterCo(name){',
     '  var nav=document.querySelector(\'nav a[href="#jobs"]\');',
     '  showTab("jobs",nav);',
     '  var srch=document.getElementById("srch");',
     '  if(srch){srch.value=name;filterJobs(name);}',
-    '  else{document.getElementById("srch").value=name;filterJobs(name);}',
     '}',
 
+    // Filter by skill tag
     'function filterSkill(skill){',
     '  var nav=document.querySelector(\'nav a[href="#jobs"]\');',
     '  showTab("jobs",nav);',
@@ -255,14 +258,13 @@ function main(total: number, boards: any[], byType: any[], topSkills: any[]): st
     '    .then(function(r){return r.json();})',
     '    .then(function(d){',
     '      allJobs=d.jobs;',
-    '      var srch=document.getElementById("srch");',
-    '      if(srch)srch.value="skill:"+skill;',
-    '      var cnt=document.getElementById("job-count");',
-    '      if(cnt)cnt.textContent=d.jobs.length;',
+    '      var srch=document.getElementById("srch");if(srch)srch.value="skill:"+skill;',
+    '      var cnt=document.getElementById("job-count");if(cnt)cnt.textContent=d.total;',
     '      renderJobs(d.jobs);',
     '    });',
     '}',
 
+    // Lazy-load ECharts + graph data
     'function loadGraph(){',
     '  graphLoaded=true;',
     '  var s=document.createElement("script");',
@@ -270,13 +272,12 @@ function main(total: number, boards: any[], byType: any[], topSkills: any[]): st
     '  s.onload=function(){',
     '    fetch("/api/graph").then(function(r){return r.json();}).then(function(d){',
     '      var cc={language:"#51c4ff",framework:"#c084fc",platform:"#7bd88f",domain:"#f4a73b"};',
-    '      var el=document.getElementById("graph");',
-    '      if(!el)return;',
+    '      var el=document.getElementById("graph");if(!el)return;',
     '      var chart=echarts.init(el,null,{renderer:"canvas"});',
     '      chart.setOption({',
     '        backgroundColor:"transparent",',
     '        tooltip:{trigger:"item",textStyle:{fontFamily:"monospace",fontSize:11},',
-    '          formatter:function(p){return p.dataType==="node"?p.data.name+"\\n"+p.data.value+" jobs":""}},',
+    '          formatter:function(p){return p.dataType==="node"?p.data.name+"\\n"+p.data.value+" jobs":"";}},',
     '        series:[{type:"graph",layout:"force",',
     '          data:d.nodes.map(function(n){return{name:n.name,symbolSize:Math.max(8,Math.sqrt(n.v)*2.5),',
     '            category:n.category,value:n.v,itemStyle:{color:cc[n.category]||"#6a6a6a"}};}),',
@@ -288,8 +289,7 @@ function main(total: number, boards: any[], byType: any[], topSkills: any[]): st
     '          emphasis:{focus:"adjacency",lineStyle:{width:3,opacity:.6}}',
     '        }]',
     '      });',
-    '      var ldr=document.querySelector("#graph-wrap .loading");',
-    '      if(ldr)ldr.remove();',
+    '      var ldr=document.querySelector("#graph-wrap .loading");if(ldr)ldr.remove();',
     '      window.addEventListener("resize",function(){chart.resize();});',
     '    });',
     '  };',
@@ -311,48 +311,38 @@ ${sharedCss()}
 .stat{border:1px solid #2a2a2a;padding:10px 12px;background:#111;flex:1;min-width:70px}
 .stat .n{font-size:22px;font-weight:700;color:#51c4ff;line-height:1}
 .stat .l{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#6a6a6a;margin-top:3px}
-.board-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-bottom:20px}
-.bcard{border:1px solid #2a2a2a;padding:10px 12px;background:#111;cursor:pointer;transition:border-color .15s}
+.board-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:5px;margin-bottom:20px}
+.bcard{border:1px solid #2a2a2a;padding:8px 10px;background:#111;cursor:pointer;transition:border-color .15s}
 .bcard:hover,.bcard:active{border-color:#51c4ff66}
-.bcnt{font-size:20px;font-weight:700;color:#51c4ff;line-height:1}
-.bnm{font-size:10px;color:#9a9a9a;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bplat{font-size:9px;color:#3a3a3a;margin-top:2px}
+.bcnt{font-size:18px;font-weight:700;color:#51c4ff;line-height:1}
+.bnm{font-size:9px;color:#9a9a9a;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .skills-wrap{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:20px}
-.srch{width:100%;padding:10px 14px;background:#111;border:1px solid #2a2a2a;
-  color:#d4d4d4;font-family:inherit;font-size:16px;margin-bottom:8px;
+.srch{width:100%;padding:9px 12px;background:#111;border:1px solid #2a2a2a;
+  color:#d4d4d4;font-family:inherit;font-size:16px;margin-bottom:6px;
   outline:none;-webkit-appearance:none;border-radius:0}
 .srch:focus{border-color:#51c4ff}
 .srch::placeholder{color:#3a3a3a}
-table{width:100%;border-collapse:collapse}
-th{padding:6px 8px;font-size:9px;color:#6a6a6a;text-transform:uppercase;
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th{padding:5px 6px;font-size:9px;color:#6a6a6a;text-transform:uppercase;
   letter-spacing:.5px;border-bottom:1px solid #1f1f1f;text-align:left;font-weight:600;background:#0a0a0a}
-td{padding:9px 8px;border-bottom:1px solid #141414;vertical-align:middle}
-tr:hover td{background:#111}
-.co-cell{color:#51c4ff;font-size:11px;font-weight:600}
-.ti-cell{color:#f4f4f4;font-size:12px}
-.lo-cell{color:#6a6a6a;font-size:10px}
-.ty-r{color:#7bd88f;font-size:10px}
-.ty-o{color:#f4a73b;font-size:10px}
-.ty-cell{color:#6a6a6a;font-size:10px}
-.loading{padding:20px;text-align:center;font-size:11px;color:#3a3a3a}
-.err{padding:12px;border:1px solid #f4706733;color:#f47067;font-size:11px;background:#111}
+th.th-ty{width:52px;text-align:right}
+td{padding:0;border-bottom:1px solid #141414;vertical-align:top}
+tr:hover td{background:#0f0f0f}
+.main-cell{padding:5px 6px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.co-cell{font-size:10px;color:#51c4ff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ti-cell{font-size:12px;color:#f4f4f4;line-height:1.3;display:block}
+.lo-cell{font-size:10px;color:#6a6a6a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ty-col{width:52px;padding:5px 6px 5px 0;text-align:right;vertical-align:top;padding-top:8px}
+.ty-r{font-size:9px;color:#7bd88f;white-space:nowrap}
+.ty-o{font-size:9px;color:#f4a73b;white-space:nowrap}
+.ty-cell{font-size:9px;color:#3a3a3a;white-space:nowrap}
+.loading{padding:16px;text-align:center;font-size:11px;color:#3a3a3a}
+.err{padding:10px;border:1px solid #f4706733;color:#f47067;font-size:11px}
 #graph-wrap{height:420px;position:relative;border:1px solid #2a2a2a;background:#111}
 #graph-wrap .loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
 #graph{width:100%;height:100%}
-.footer{text-align:center;padding:20px 16px;font-size:10px;color:#3a3a3a;border-top:1px solid #1a1a1a}
+.footer{text-align:center;padding:16px;font-size:10px;color:#3a3a3a;border-top:1px solid #1a1a1a}
 .footer a{color:#51c4ff;text-decoration:none}
-@media(max-width:480px){
-  .board-grid{grid-template-columns:repeat(auto-fill,minmax(85px,1fr))}
-  .stats-row{gap:4px}
-  table thead{display:none}
-  table,tbody,tr,td{display:block}
-  tr{border:1px solid #1f1f1f;margin-bottom:4px;padding:8px 10px;background:#111;cursor:pointer}
-  tr:hover{background:#141414}
-  td{border:none;padding:1px 0}
-  .co-cell{margin-bottom:2px}
-  .ti-cell{font-size:12px;color:#f4f4f4;font-weight:500;margin-bottom:2px}
-  .lo-cell,.ty-r,.ty-o,.ty-cell{font-size:10px;display:inline;margin-right:8px}
-}
 </style>
 </head>
 <body>
@@ -400,8 +390,11 @@ tr:hover td{background:#111}
       <span class=sl>positions</span>
       <span id=job-count class="sl sl-m" style="margin-left:auto"></span>
     </div>
-    <input class=srch id=srch placeholder="search roles, companies, locations…" oninput="filterJobs(this.value)" autocomplete=off autocorrect=off autocapitalize=off spellcheck=false>
-    <div id=job-table><div class=loading>loading positions…</div></div>
+    <input class=srch id=srch
+      placeholder="analytics engineer · data engineer · stripe…"
+      oninput="filterJobs(this.value)"
+      autocomplete=off autocorrect=off autocapitalize=off spellcheck=false>
+    <div id=job-table><div class=loading>loading…</div></div>
   </div>
 </section>
 
@@ -428,7 +421,7 @@ tr:hover td{background:#111}
 }
 
 // ── Job detail page ───────────────────────────────────────────────────────────
-function detail(j: any, h: string, skills: any[]): string {
+function detail(j: any, skills: any[]): string {
   const tags = skills.map((s: any) => {
     const cls = s.category === 'language' ? 'lang' : s.category === 'framework' ? 'fw' :
                 s.category === 'platform'  ? 'plat' : 'dom';
@@ -448,20 +441,22 @@ function detail(j: any, h: string, skills: any[]): string {
 <title>${esc(j.title)} — ${esc(j.company_name)}</title>
 <style>
 ${sharedCss()}
-.detail{max-width:720px;margin:16px auto;border:1px solid #2a2a2a;padding:20px;background:#111}
-.d-co{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#51c4ff;margin-bottom:8px}
-.d-title{font-size:20px;color:#f4f4f4;font-weight:700;margin-bottom:16px;line-height:1.3}
-.d-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px}
-.d-tag{font-size:10px;padding:3px 10px;border:1px solid #2a2a2a;color:#6a6a6a}
-.d-hash{font-size:9px;color:#2a2a2a;word-break:break-all;margin-top:20px;
-  border-top:1px solid #1f1f1f;padding-top:12px}
+.detail{max-width:680px;margin:14px auto;border:1px solid #2a2a2a;padding:18px;background:#111}
+.d-co{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#51c4ff;margin-bottom:6px}
+.d-title{font-size:18px;color:#f4f4f4;font-weight:700;margin-bottom:14px;line-height:1.3}
+.d-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.d-tag{font-size:10px;padding:3px 9px;border:1px solid #2a2a2a;color:#6a6a6a}
+.d-apply{display:inline-block;margin-top:4px;padding:7px 16px;border:1px solid #51c4ff44;
+  color:#51c4ff;font-size:11px;text-decoration:none;text-transform:uppercase;letter-spacing:.5px}
+.d-apply:hover{background:#51c4ff11}
 .skills-wrap{display:flex;flex-wrap:wrap;gap:4px}
+.d-note{font-size:10px;color:#3a3a3a;margin-top:16px;border-top:1px solid #1f1f1f;padding-top:10px}
 </style>
 </head>
 <body>
 <div id=hdr>
   <h1><a href=/ style="color:#f4f4f4;text-decoration:none">subagentjobs</a></h1>
-  <span class=hdr-meta>← back</span>
+  <span class=hdr-meta><a href="javascript:history.back()" style="color:#51c4ff;text-decoration:none">← back</a></span>
 </div>
 <main style=padding:12px>
   <div class=detail>
@@ -472,16 +467,16 @@ ${sharedCss()}
       <span class=d-tag>${esc(j.location_type || '—')}</span>
       <span class=d-tag>${published}</span>
     </div>
-    <div class=sh><span class=sl>extracted skills</span></div>
+    ${j.absolute_url ? '<a class=d-apply href="' + esc(j.absolute_url) + '" target=_blank rel=noopener>view original posting ↗</a><br><br>' : ''}
+    <div class=sh style="margin-top:4px"><span class=sl>extracted skills</span></div>
     <div class=skills-wrap>${tags || '<span style="color:#3a3a3a;font-size:11px">no skills matched</span>'}</div>
-    <div class=d-hash>sha256: ${h}</div>
+    <div class=d-note>rate/salary data not yet in warehouse — check the original posting above</div>
   </div>
 </main>
 </body>
 </html>`;
 }
 
-// Minimal HTML-escape to prevent XSS in server-rendered fields
 function esc(s: string): string {
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
