@@ -1,0 +1,47 @@
+{
+  "_profile": "code",
+  "_description": "Code tab — full MCP suite for active subagentjobs development. Cloudflare (D1 + Workers), GitHub, filesystem, and the subagentjobs MCP server itself (for dogfooding). Includes the Postgres server for direct DB inspection.",
+  "_activate": "cp profiles/claude_desktop_code.json ~/Library/Application\\ Support/Claude/claude_desktop_config.json && pkill -x 'Claude' 2>/dev/null; open -a Claude",
+
+  "mcpServers": {
+    "cloudflare": {
+      "command": "npx",
+      "args": ["-y", "@cloudflare/mcp-server-cloudflare"],
+      "env": {
+        "CLOUDFLARE_ACCOUNT_ID": "e6294e3ea89f8207af387d459824aaae"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/alex-opensubagents/opencoworkers/subagentjobs",
+        "/Users/alex-opensubagents/opencoworkers"
+      ]
+    },
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "${DATABASE_URL}"
+      ]
+    },
+    "subagentjobs-mcp": {
+      "command": "/Users/alex-opensubagents/opencoworkers/subagentjobs/target/debug/subagentjobs-mcp",
+      "args": [],
+      "env": {
+        "DATABASE_URL": "${DATABASE_URL}",
+        "REDIS_URL": "${REDIS_URL}"
+      }
+    }
+  }
+}

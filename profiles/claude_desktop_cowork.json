@@ -1,0 +1,30 @@
+{
+  "_profile": "cowork",
+  "_description": "Cowork tab — Claude Desktop configured for agentic file/task work on the subagentjobs repo. Provides MCP servers for Cloudflare (D1 queries, Worker deploys) and GitHub. The Code tab is also available but not the focus.",
+  "_activate": "cp profiles/claude_desktop_cowork.json ~/Library/Application\\ Support/Claude/claude_desktop_config.json && pkill -x 'Claude' 2>/dev/null; open -a Claude",
+
+  "mcpServers": {
+    "cloudflare": {
+      "command": "npx",
+      "args": ["-y", "@cloudflare/mcp-server-cloudflare"],
+      "env": {
+        "CLOUDFLARE_ACCOUNT_ID": "e6294e3ea89f8207af387d459824aaae"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/alex-opensubagents/opencoworkers/subagentjobs"
+      ]
+    }
+  }
+}

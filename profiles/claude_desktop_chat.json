@@ -1,0 +1,7 @@
+{
+  "_profile": "chat",
+  "_description": "Minimal Claude Desktop — Chat tab only. No MCP servers, no workspace folder. Pure conversation with Claude, no file access, no code tools.",
+  "_activate": "cp profiles/claude_desktop_chat.json ~/Library/Application\\ Support/Claude/claude_desktop_config.json && pkill -x 'Claude' 2>/dev/null; open -a Claude",
+
+  "mcpServers": {}
+}

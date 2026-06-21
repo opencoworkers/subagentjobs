@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod job;
 pub mod skill;
 pub mod task;

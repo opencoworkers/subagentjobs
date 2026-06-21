@@ -8,6 +8,7 @@ members = [
   "crates/a2a-bridge",
   "crates/durable-store",
   "crates/indexer",
+  "crates/agent-gen",
 ]
 
 [workspace.package]

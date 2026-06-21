@@ -1,0 +1,13 @@
+[package]
+name = "agent-gen"
+edition.workspace = true
+rust-version.workspace = true
+description = "Generate type-safe .claude/agents/*.yaml from Rust struct definitions"
+
+[[bin]]
+name  = "agent-gen"
+path  = "src/main.rs"
+
+[dependencies]
+schema    = { path = "../schema" }
+anyhow.workspace = true

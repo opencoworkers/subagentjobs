@@ -21,9 +21,9 @@ branch      = "main"
 description = "Official MCP reference servers (filesystem, git, postgres, brave-search, etc.)"
 
 [[vendor]]
-org         = "opensubagents"
+org         = "opencoworkers"
 repo        = "subagentjobs"
-url         = "https://github.com/opensubagents/subagentjobs"
+url         = "https://github.com/opencoworkers/subagentjobs"
 branch      = "main"
 description = "This repo — self-indexed so the MCP server can search its own codebase"
 
