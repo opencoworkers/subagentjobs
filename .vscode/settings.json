@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/vscode-settings.json",
+
+  // ── Claude Code ──────────────────────────────────────────────────────────
+  // Show plan before making any edits — safe default for a shared repo.
+  "claudeCode.initialPermissionMode": "plan",
+  "claudeCode.autosave": true,
+  "claudeCode.respectGitIgnore": true,
+  "claudeCode.enableNewConversationShortcut": true,
+
+  // ── Database Client (cweijan.vscode-redis-client) ─────────────────────
+  // Disable anonymous telemetry collection.
+  "database-client.telemetry.usesOnlineServices": false,
+
+  // ── Rust Analyzer ────────────────────────────────────────────────────────
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.checkOnSave": true,
+  "rust-analyzer.check.command": "clippy"
+}

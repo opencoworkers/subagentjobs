@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "anthropic.claude-code",
+    "cweijan.vscode-redis-client",
+    "rust-lang.rust-analyzer",
+    "tamasfe.even-better-toml"
+  ]
+}

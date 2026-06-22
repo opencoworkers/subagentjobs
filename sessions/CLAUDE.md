@@ -116,6 +116,34 @@ These docs don't resolve yet but define the target architecture:
     "status": "pending",
     "priority": "medium",
     "note": "Run after ending the current Claude Desktop session"
+  },
+  {
+    "id": "task-migration-007-doc-pages",
+    "description": "Apply migration 007 to Postgres: psql $DATABASE_URL -f crates/durable-store/migrations/postgres/007_doc_pages.sql",
+    "status": "pending",
+    "priority": "high",
+    "blocked_by": ["DATABASE_URL environment variable"]
+  },
+  {
+    "id": "task-redis-start",
+    "description": "Start local Redis for docs-crawler + durable-store: make redis-start (requires Docker). Verify: redis-cli ping",
+    "status": "pending",
+    "priority": "high",
+    "note": "Required before running crawl-docs or any durable-store Redis operations"
+  },
+  {
+    "id": "task-first-crawl",
+    "description": "Run first Claude docs crawl: DATABASE_URL=$DATABASE_URL make crawl-docs. Expected: ~500 pages fetched, docs/{code,platform,support,claude}.claude.com/ populated, fact_doc_pages upserted.",
+    "status": "pending",
+    "priority": "high",
+    "blocked_by": ["task-migration-007-doc-pages", "task-redis-start"]
+  },
+  {
+    "id": "task-index-docs",
+    "description": "Index downloaded docs for MCP search: make index-docs (cargo run -p indexer -- --path docs/). Populates fact_filesystem + dim_file_ast for FTS.",
+    "status": "pending",
+    "priority": "medium",
+    "blocked_by": ["task-first-crawl"]
   }
 ]
 ```
