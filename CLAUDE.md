@@ -69,32 +69,17 @@ modelcontextprotocol/rust-sdk, redis-rs/redis-rs
 - Binary: `target/debug/engineering-coworker` (after `cargo build -p engineering-coworker`)
 - Docker MCP profile: `macos__desktop_cowork__engineering_coworker` (17 catalog servers snapshotted)
 
-## Active task session (schema v0.1.0)
-```json
-{
-  "schema_version": "0.1.0",
-  "name": "ecosystem-wiring-2026-06-21",
-  "queue": {
-    "schema_version": "0.1.0",
-    "tasks": [
-      {"schema_version":"0.1.0","content":"Write migration 006_ecosystem_catalog.sql (fact_orgs, fact_repositories, dim_packages + seed)","status":"completed","priority":"high","kind":{"kind":"migration","file":"006_ecosystem_catalog.sql"}},
-      {"schema_version":"0.1.0","content":"Update .vendors.toml with a2a-rs, a2a-js, mcp/typescript-sdk, mcp/rust-sdk, redis-rs","status":"completed","priority":"high","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"Wire crates/a2a-bridge: main.rs with axum + a2a-server-lf stub, AgentCard endpoint, tasks/send→MCP stdio proxy","status":"completed","priority":"high","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"Add A2A routes to workers/web: GET /.well-known/agent-card.json + POST /a2a (tasks/send, HTTP+JSON)","status":"completed","priority":"high","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"Add @a2a-js/sdk to workers/web/package.json (removed @modelcontextprotocol/hono — no v1 published)","status":"completed","priority":"medium","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"cargo check --workspace after axum + a2a-rs wiring","status":"completed","priority":"high","kind":{"kind":"shell_command","command":"RUSTC_WRAPPER='' cargo check --workspace"}},
-      {"schema_version":"0.1.0","content":"Deploy updated CF Worker (A2A routes) via wrangler deploy","status":"completed","priority":"medium","kind":{"kind":"shell_command","command":"cd workers/web && wrangler deploy"}},
-      {"schema_version":"0.1.0","content":"Clone all vendor repos via setup-vendors.sh (11 repos in vendors/)","status":"completed","priority":"low","kind":{"kind":"shell_command","command":"./scripts/setup-vendors.sh --update"}},
-      {"schema_version":"0.1.0","content":"Type-safe sub-agent system: crates/agent-gen + scripts/agents/ + .claude/agents/*.yaml (7 agents)","status":"completed","priority":"high","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"macOS Claude Desktop profiles: chat/cowork/code + profiles/switch-profile.sh","status":"completed","priority":"medium","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"Commit and push all changes (6e709b3)","status":"completed","priority":"medium","kind":{"kind":"shell_command","command":"git add -A && git commit && git push"}},
-      {"schema_version":"0.1.0","content":"Apply migration 006 to Postgres (not D1 — Postgres-only schema). Requires DATABASE_URL env var pointing to the Postgres instance. Run: psql $DATABASE_URL -f crates/durable-store/migrations/postgres/006_ecosystem_catalog.sql","status":"pending","priority":"medium","kind":{"kind":"migration","file":"006_ecosystem_catalog.sql"}},
-      {"schema_version":"0.1.0","content":"Implement AgentExecutor trait in a2a-bridge once a2a-server-lf API stabilises (replaces axum stubs)","status":"pending","priority":"low","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"Run indexer over vendor repos: cargo run -p indexer -- --all","status":"pending","priority":"low","kind":{"kind":"shell_command","command":"cargo run -p indexer -- --all"}},
-      {"schema_version":"0.1.0","content":"Switch Claude Desktop to cowork profile to load engineering-coworker MCP: bash profiles/switch-profile.sh cowork (run after ending current session)","status":"pending","priority":"medium","kind":{"kind":"shell_command","command":"bash profiles/switch-profile.sh cowork"}},
-      {"schema_version":"0.1.0","content":"Refresh CLAUDE_CODE_OAUTH_TOKEN if expired (expiresAt was ~Jun 12 2026). Run: claude auth login, then extract new token from ~/.claude/.credentials.json","status":"pending","priority":"medium","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"sessions/ directory scaffold: CLAUDE.md, DEPENDENCIES.md, .gitignore, session-index.json, scheduled-tasks.json","status":"completed","priority":"high","kind":{"kind":"todo"}}
-    ]
-  }
-}
-```
+## Pending tasks
+
+- Apply migration 006 to Postgres: `psql $DATABASE_URL -f crates/durable-store/migrations/postgres/006_ecosystem_catalog.sql`
+- Implement `AgentExecutor` trait in `crates/a2a-bridge` once `a2a-server-lf` API stabilises
+- Run indexer over vendor repos: `cargo run -p indexer -- --all`
+- Switch Claude Desktop to cowork profile: `bash profiles/switch-profile.sh cowork`
+- Refresh `CLAUDE_CODE_OAUTH_TOKEN` if expired: `claude auth login`
+
+## Repo hygiene
+
+- Atomic commits: `bash scripts/commit-tested.sh` — runs `swift test` before each commit
+- Vendor gitignore: `vendors/*/` (org-level) + `!vendors/*/.gitkeep`
+- Build artifacts ignored: `.build/`, `.swiftpm/`, `node_modules/`, `.wrangler/`, `target/`
+- Current branch for active work: `feature/readme-docs-swift-linux`

@@ -371,3 +371,110 @@ impl DurableStore {
         .flatten()
     }
 }
+
+// ── Doc pages ─────────────────────────────────────────────────────────────────
+
+const REDIS_DOC_TTL: u64 = 3600;
+
+impl DurableStore {
+    /// SHA256-based CDC for a doc URL.
+    ///
+    /// Redis keys:
+    ///   - `snap:doc:{sha256(url)}` — previous content hash (TTL 3600 s)
+    ///   - `doc:{sha256(url)}`      — cached DocPage JSON (busted on change)
+    ///
+    /// Same pipeline pattern as `check_and_record_snapshot` for boards.
+    pub async fn check_and_record_doc_snapshot(
+        &self,
+        url: &str,
+        hash: &str,
+    ) -> Result<CdcResult> {
+        let url_key  = Self::sha256_hex(url.as_bytes());
+        let snap_key = format!("snap:doc:{url_key}");
+        let doc_key  = format!("doc:{url_key}");
+        let mut redis = self.redis();
+
+        let prev: Option<String> = redis.get(&snap_key).await.unwrap_or(None);
+        let changed = prev.as_deref() != Some(hash);
+
+        if changed {
+            redis::pipe()
+                .set_ex(&snap_key, hash, REDIS_DOC_TTL)
+                .ignore()
+                .del(&doc_key)
+                .ignore()
+                .query_async::<()>(&mut redis)
+                .await?;
+        }
+
+        Ok(CdcResult { changed, hash: hash.to_string() })
+    }
+
+    /// Redis L2 → Postgres L3 fetch for a single doc page by URL.
+    pub async fn get_doc_page(&self, url: &str) -> Result<Option<DocPage>> {
+        let url_key = Self::sha256_hex(url.as_bytes());
+        let doc_key = format!("doc:{url_key}");
+        let mut redis = self.redis();
+
+        if let Ok(raw) = redis.get::<_, String>(&doc_key).await {
+            if let Ok(page) = serde_json::from_str::<DocPage>(&raw) {
+                tracing::debug!(url, "doc redis hit");
+                return Ok(Some(page));
+            }
+        }
+
+        let page: Option<DocPage> = sqlx::query_as(
+            "SELECT url, host, path, sha256, content_md, admonitions, gfm, crawled_at \
+             FROM fact_doc_pages WHERE url = $1",
+        )
+        .bind(url)
+        .fetch_optional(&self.pg)
+        .await?;
+
+        if let Some(ref p) = page {
+            let _: () = redis
+                .set_ex(&doc_key, serde_json::to_string(p)?, REDIS_DOC_TTL)
+                .await?;
+        }
+
+        Ok(page)
+    }
+
+    /// Upsert doc pages in a single transaction.
+    /// On conflict updates sha256, content, admonitions, gfm and resets crawled_at.
+    pub async fn upsert_doc_pages(&self, pages: &[DocPage]) -> Result<u64> {
+        if pages.is_empty() {
+            return Ok(0);
+        }
+        let mut tx = self.pg.begin().await?;
+        let mut total = 0u64;
+
+        for p in pages {
+            let ads_json = p.admonitions.as_ref().map(|v| v.to_string());
+            sqlx::query(
+                "INSERT INTO fact_doc_pages \
+                   (url, host, path, sha256, content_md, admonitions, gfm) \
+                 VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7) \
+                 ON CONFLICT (url) DO UPDATE SET \
+                   sha256      = EXCLUDED.sha256, \
+                   content_md  = EXCLUDED.content_md, \
+                   admonitions = EXCLUDED.admonitions, \
+                   gfm         = EXCLUDED.gfm, \
+                   crawled_at  = NOW()",
+            )
+            .bind(&p.url)
+            .bind(&p.host)
+            .bind(&p.path)
+            .bind(&p.sha256)
+            .bind(p.content_md.as_deref())
+            .bind(ads_json.as_deref())
+            .bind(p.gfm.as_deref())
+            .execute(&mut *tx)
+            .await?;
+            total += 1;
+        }
+
+        tx.commit().await?;
+        Ok(total)
+    }
+}

@@ -104,38 +104,34 @@ else
     warn "Install Node.js: https://nodejs.org or via nvm"
 fi
 
-# ── Swift + sourcekit-lsp ────────────────────────────────────────────────────
-# sourcekit-lsp provides .swift code intelligence to rust-analyzer-lsp-enabled
-# Claude Code agents even when they can't build the macOS app targets.
-SWIFT_VERSION="6.0.3"   # Update to match Xcode beta Swift version
-SWIFT_INSTALL_DIR="/opt/swift"
+# ── Swift via Swiftly ────────────────────────────────────────────────────────
+# Swiftly is the official Swift toolchain manager (like rustup).
+# Installs Swift 6.3.2 + sourcekit-lsp. Safe to re-run (idempotent).
+# Ref: https://www.swift.org/install/linux/
+SWIFTLY_ENV="${SWIFTLY_HOME_DIR:-$HOME/.local/share/swiftly}/env.sh"
+
+if need swift; then
+    ok "swift $(swift --version 2>&1 | head -1)"
+elif [ -f "$SWIFTLY_ENV" ]; then
+    # shellcheck source=/dev/null
+    source "$SWIFTLY_ENV" && hash -r
+    ok "swift (swiftly) $(swift --version 2>&1 | head -1)"
+else
+    warn "Installing Swift via Swiftly (official toolchain manager)"
+    curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-$(uname -m).tar.gz" \
+        -o /tmp/swiftly.tar.gz
+    tar zxf /tmp/swiftly.tar.gz -C /tmp
+    /tmp/swiftly init --quiet-shell-followup
+    # shellcheck source=/dev/null
+    source "$SWIFTLY_ENV" && hash -r
+    rm -f /tmp/swiftly.tar.gz /tmp/swiftly
+    ok "Swiftly installed → Swift $(swift --version 2>&1 | head -1)"
+fi
 
 if need sourcekit-lsp; then
     ok "sourcekit-lsp $(sourcekit-lsp --version 2>&1 | head -1)"
-elif [ -f "$SWIFT_INSTALL_DIR/usr/bin/sourcekit-lsp" ]; then
-    export PATH="$SWIFT_INSTALL_DIR/usr/bin:$PATH"
-    ok "sourcekit-lsp (from $SWIFT_INSTALL_DIR)"
 else
-    warn "Swift not found — installing Swift $SWIFT_VERSION for sourcekit-lsp"
-    ARCH=$(uname -m)
-    if [ "$ARCH" = "x86_64" ]; then
-        SWIFT_PKG="swift-${SWIFT_VERSION}-RELEASE-ubuntu22.04"
-    else
-        SWIFT_PKG="swift-${SWIFT_VERSION}-RELEASE-ubuntu22.04-aarch64"
-    fi
-    SWIFT_URL="https://download.swift.org/swift-${SWIFT_VERSION}-release/ubuntu2204/${SWIFT_PKG}/${SWIFT_PKG}.tar.gz"
-    TMP=$(mktemp -d)
-    curl -fsSL "$SWIFT_URL" -o "$TMP/swift.tar.gz"
-    sudo mkdir -p "$SWIFT_INSTALL_DIR"
-    sudo tar -xzf "$TMP/swift.tar.gz" --strip-components=1 -C "$SWIFT_INSTALL_DIR"
-    rm -rf "$TMP"
-    export PATH="$SWIFT_INSTALL_DIR/usr/bin:$PATH"
-    ok "Swift $SWIFT_VERSION installed → $SWIFT_INSTALL_DIR"
-
-    # Persist PATH for future shells
-    if ! grep -q "SWIFT_INSTALL_DIR" "$HOME/.bashrc" 2>/dev/null; then
-        echo "export PATH=\"$SWIFT_INSTALL_DIR/usr/bin:\$PATH\"" >> "$HOME/.bashrc"
-    fi
+    warn "sourcekit-lsp not found in PATH after Swift install — check swiftly env"
 fi
 
 # ── multilspy (LSP query venv) ───────────────────────────────────────────────

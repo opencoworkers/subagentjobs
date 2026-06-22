@@ -32,3 +32,7 @@ vendors/*/
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# Large generated files (exceed GitHub 100MB limit)
+crates/docs-crawler/.cache/
+docs/docs/platform.claude.com/llms-full.txt.md

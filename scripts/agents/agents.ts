@@ -210,4 +210,43 @@ export const agents: AgentConfig[] = [
           -d '{"jsonrpc":"2.0","id":1,"method":"tasks/send","params":{...}}'
     `.trim(),
   },
+
+  {
+    name: 'docs-crawler',
+    model: 'claude-haiku-4-5-20251001',
+    tools: ['Bash', 'Read'],
+    max_turns: 15,
+    description: `
+      Delegate when the user wants to crawl Claude documentation sources,
+      refresh docs/, download updated .md pages, or re-index docs for search.
+      Sources: code.claude.com, platform.claude.com, support.claude.com, claude.com.
+      Do NOT delegate for editing crawler source code.
+    `.trim(),
+    system_prompt: `
+      You are the docs-crawler agent for subagentjobs.
+
+      Crawl all default Claude doc sources:
+        make crawl-docs
+        # or: DATABASE_URL=$DATABASE_URL cargo run -p docs-crawler
+
+      Override targets:
+        DATABASE_URL=$DATABASE_URL cargo run -p docs-crawler -- \\
+          --targets https://code.claude.com/docs/llms.txt
+
+      After crawling, index for MCP search:
+        make index-docs
+
+      Start Redis if not running:
+        make redis-start
+
+      Steps:
+      1. Confirm DATABASE_URL is set (required); REDIS_URL defaults to localhost:6379.
+      2. Run make crawl-docs.
+      3. Report: pages fetched, pages skipped (unchanged), pages upserted, errors.
+      4. Optionally run make index-docs to populate fact_filesystem for FTS.
+
+      LRU cache: crates/docs-crawler/.cache/mdx-lru.json (version-controlled pre-warm).
+      Output: docs/{host}/{path}.md files + fact_doc_pages in Postgres.
+    `.trim(),
+  },
 ];
