@@ -47,7 +47,8 @@ endef
         check test test-rust test-swift \
         deploy-web deploy-cron \
         buddy buddy-build \
-        atomic toolchain
+        atomic toolchain \
+        crawl-docs index-docs redis-start redis-stop
 
 # ── Default ───────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,11 @@ help:
 	@printf "  $(CYAN)make buddy$(RESET)        build + launch BuddyApp (macOS)\n"
 	@printf "  $(CYAN)make atomic$(RESET)       scripts/commit-tested.sh (test-gated commits)\n"
 	@printf "  $(CYAN)make toolchain$(RESET)    install full toolchain (mac or linux)\n"
+	@printf "\n  $(BOLD)Docs crawler$(RESET)\n"
+	@printf "  $(CYAN)make crawl-docs$(RESET)   cargo run -p docs-crawler (needs DATABASE_URL + Redis)\n"
+	@printf "  $(CYAN)make index-docs$(RESET)   cargo run -p indexer -- --path docs/ (FTS index)\n"
+	@printf "  $(CYAN)make redis-start$(RESET)  start local Redis via Docker (port 6379)\n"
+	@printf "  $(CYAN)make redis-stop$(RESET)   stop local Redis container\n"
 	@printf "\n"
 
 # ── Quality pipeline ──────────────────────────────────────────────────────────
@@ -176,3 +182,27 @@ toolchain:
 	  Linux)  bash "$(REPO)/scripts/toolchain/setup-linux.sh" ;; \
 	  *)      printf "$(YELLOW)⚠  Unsupported OS$(RESET)\n"; exit 1 ;; \
 	esac
+
+# ── Docs crawler ──────────────────────────────────────────────────────────────
+
+# Crawl Claude documentation sources → docs/{host}/…  Requires DATABASE_URL + Redis.
+crawl-docs:
+	$(call log,Running docs-crawler…)
+	RUSTC_WRAPPER="" cargo run -p docs-crawler
+
+# Index downloaded .md files into fact_filesystem + dim_file_ast for MCP search.
+index-docs:
+	$(call log,Indexing docs/ into Postgres…)
+	RUSTC_WRAPPER="" DATABASE_URL="$$DATABASE_URL" cargo run -p indexer -- --path docs
+
+# Start a local Redis instance via Docker (used by docs-crawler + durable-store).
+redis-start:
+	$(call log,Starting Redis on :6379…)
+	@docker run -d --name subagentjobs-redis -p 6379:6379 redis:7-alpine \
+	  || docker start subagentjobs-redis
+
+# Stop and remove the local Redis container.
+redis-stop:
+	$(call log,Stopping Redis…)
+	@docker stop subagentjobs-redis && docker rm subagentjobs-redis
+

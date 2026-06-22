@@ -1,0 +1,28 @@
+[package]
+name = "docs-crawler"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+durable-store   = { path = "../durable-store" }
+reqwest.workspace = true
+scraper.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+tokio.workspace = true
+futures.workspace = true
+clap.workspace = true
+regex.workspace = true
+once_cell.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+quick-xml.workspace = true
+pulldown-cmark.workspace = true
+lru.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
