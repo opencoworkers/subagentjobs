@@ -10,6 +10,7 @@
 // using plain Codable instead (works on Linux without FoundationModels framework).
 
 import Foundation
+import ClaudeAPIClient
 
 public struct BuddySummary: Codable, Sendable {
     /// ≤80 chars. What's actually happening right now, in plain language.
@@ -28,10 +29,32 @@ public struct ClaudeSummariser: Sendable {
     private let client: ClaudeClient
     private let model: String
 
+    /// Initialise with a standard Anthropic API key (`sk-ant-api03-...`).
     public init(apiKey: String, model: String = "claude-haiku-4-5-20251001") {
         let config = Configuration(auth: .apiKey(apiKey))
         self.client = ClaudeClient(configuration: config)
         self.model = model
+    }
+
+    /// Initialise with a Claude Code / Claude.ai OAuth token (`sk-ant-oat01-...`).
+    /// Reads `CLAUDE_CODE_OAUTH_TOKEN` env var if no explicit token is supplied.
+    public init(oauthToken: String, model: String = "claude-haiku-4-5-20251001") {
+        let config = Configuration(auth: .oauthToken(oauthToken))
+        self.client = ClaudeClient(configuration: config)
+        self.model = model
+    }
+
+    /// Convenience: reads `CLAUDE_CODE_OAUTH_TOKEN` then `ANTHROPIC_API_KEY`
+    /// from the process environment. Returns nil if neither is set.
+    public static func fromEnvironment(model: String = "claude-haiku-4-5-20251001") -> ClaudeSummariser? {
+        let env = ProcessInfo.processInfo.environment
+        if let token = env["CLAUDE_CODE_OAUTH_TOKEN"], !token.isEmpty {
+            return ClaudeSummariser(oauthToken: token, model: model)
+        }
+        if let key = env["ANTHROPIC_API_KEY"], !key.isEmpty {
+            return ClaudeSummariser(apiKey: key, model: model)
+        }
+        return nil
     }
 
     /// Generate a `BuddySummary` from the current `BuddyState`.
@@ -63,7 +86,7 @@ public struct ClaudeSummariser: Sendable {
         let request = MessagesRequest(
             model: model,
             maxTokens: 200,
-            messages: [Message(role: "user", content: [.text(prompt)])]
+            messages: [Message(role: .user, content: [.text(prompt)])]
         )
         let response = try await client.send(request)
         guard let text = response.content.compactMap({ block -> String? in

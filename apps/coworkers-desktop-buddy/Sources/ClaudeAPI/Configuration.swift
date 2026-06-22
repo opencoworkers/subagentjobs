@@ -5,7 +5,12 @@ import Foundation
 
 public struct Configuration: Sendable {
   public enum Auth: Sendable, Hashable {
+    /// Standard Anthropic API key (`sk-ant-api03-...`). Sent as `x-api-key`.
     case apiKey(String)
+    /// Claude Code / Claude.ai OAuth access token (`sk-ant-oat01-...`).
+    /// Sent as `Authorization: Bearer <token>`. Use `CLAUDE_CODE_OAUTH_TOKEN`
+    /// env var — no separate API key purchase required for your own tooling.
+    case oauthToken(String)
     /// No credential. Use when the caller injects auth per-request via
     /// ``ClaudeClient/send(_:headers:)`` / ``ClaudeClient/stream(_:headers:)``
     /// (rotating bearer tokens), or when `baseURL` is a proxy that adds

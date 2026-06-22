@@ -34,6 +34,15 @@ public struct PendingTool: Codable, Sendable {
     public let requestId: String
     public let tool: String
     public let hint: String
+
+    // Explicit public init required: Swift's synthesized memberwise init is
+    // `internal` even when all properties are `public`, so plain `import BuddyCore`
+    // in tests (without @testable) cannot call it.
+    public init(requestId: String, tool: String, hint: String) {
+        self.requestId = requestId
+        self.tool = tool
+        self.hint = hint
+    }
 }
 
 // MARK: - Virtual buddy display state (mirrors TamaState in data.h)
@@ -61,13 +70,15 @@ public struct BuddyState: Codable, Sendable {
     public var claudeSummary: String?
 
     public init(
+        connected: Bool = false,
         sessionsTotal: UInt8 = 0, sessionsRunning: UInt8 = 0, sessionsWaiting: UInt8 = 0,
         msg: String = "No sessions", lines: [String] = [], tokensToday: UInt64 = 0,
-        prompt: PermissionPrompt? = nil, connected: Bool = false, claudeSummary: String? = nil
+        prompt: PermissionPrompt? = nil, claudeSummary: String? = nil
     ) {
+        self.connected = connected
         self.sessionsTotal = sessionsTotal; self.sessionsRunning = sessionsRunning
         self.sessionsWaiting = sessionsWaiting; self.msg = msg; self.lines = lines
-        self.tokensToday = tokensToday; self.prompt = prompt; self.connected = connected
+        self.tokensToday = tokensToday; self.prompt = prompt
         self.claudeSummary = claudeSummary
     }
 }
@@ -114,9 +125,10 @@ extension BuddyState {
             "[\(s.status.rawValue)] \(s.title.prefix(80))"
         }
         return BuddyState(
+            connected: !sessions.isEmpty,
             sessionsTotal: total, sessionsRunning: running, sessionsWaiting: waiting,
             msg: String(msg.prefix(24)), lines: Array(lines),
-            tokensToday: tokensToday, prompt: prompt, connected: !sessions.isEmpty
+            tokensToday: tokensToday, prompt: prompt
         )
     }
 }

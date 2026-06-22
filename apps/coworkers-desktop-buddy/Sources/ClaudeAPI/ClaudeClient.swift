@@ -110,6 +110,8 @@ public struct ClaudeClient: Sendable {
     switch configuration.auth {
     case .apiKey(let key):
       req.setValue(key, forHTTPHeaderField: "x-api-key")
+    case .oauthToken(let token):
+      req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     case .none:
       break
     }
