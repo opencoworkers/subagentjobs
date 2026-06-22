@@ -1,8 +1,26 @@
+# Build artifacts
 target/
-.env
-*.local
+.build/
+*.o
+*.d
+
+# Swift / Xcode
+.swiftpm/
+*.xcuserdata/
+xcuserdata/
+DerivedData/
+
+# Node / Cloudflare
+node_modules/
+.wrangler/
+
+# Rust
 sqlx-data.json
 .sccache/
+
+# Env / secrets
+.env
+*.local
 
 # Vendor repos — declared in .gitmodules / .vendors.toml, not version-controlled.
 # Populate with: git submodule update --init --depth 1
@@ -10,3 +28,7 @@ sqlx-data.json
 vendors/*/
 !vendors/*/.gitkeep
 
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
