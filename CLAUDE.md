@@ -90,7 +90,10 @@ modelcontextprotocol/rust-sdk, redis-rs/redis-rs
       {"schema_version":"0.1.0","content":"Commit and push all changes (6e709b3)","status":"completed","priority":"medium","kind":{"kind":"shell_command","command":"git add -A && git commit && git push"}},
       {"schema_version":"0.1.0","content":"Apply migration 006 to Postgres (not D1 — Postgres-only schema). Requires DATABASE_URL env var pointing to the Postgres instance. Run: psql $DATABASE_URL -f crates/durable-store/migrations/postgres/006_ecosystem_catalog.sql","status":"pending","priority":"medium","kind":{"kind":"migration","file":"006_ecosystem_catalog.sql"}},
       {"schema_version":"0.1.0","content":"Implement AgentExecutor trait in a2a-bridge once a2a-server-lf API stabilises (replaces axum stubs)","status":"pending","priority":"low","kind":{"kind":"todo"}},
-      {"schema_version":"0.1.0","content":"Run indexer over vendor repos: cargo run -p indexer -- --all","status":"pending","priority":"low","kind":{"kind":"shell_command","command":"cargo run -p indexer -- --all"}}
+      {"schema_version":"0.1.0","content":"Run indexer over vendor repos: cargo run -p indexer -- --all","status":"pending","priority":"low","kind":{"kind":"shell_command","command":"cargo run -p indexer -- --all"}},
+      {"schema_version":"0.1.0","content":"Switch Claude Desktop to cowork profile to load engineering-coworker MCP: bash profiles/switch-profile.sh cowork (run after ending current session)","status":"pending","priority":"medium","kind":{"kind":"shell_command","command":"bash profiles/switch-profile.sh cowork"}},
+      {"schema_version":"0.1.0","content":"Refresh CLAUDE_CODE_OAUTH_TOKEN if expired (expiresAt was ~Jun 12 2026). Run: claude auth login, then extract new token from ~/.claude/.credentials.json","status":"pending","priority":"medium","kind":{"kind":"todo"}},
+      {"schema_version":"0.1.0","content":"sessions/ directory scaffold: CLAUDE.md, DEPENDENCIES.md, .gitignore, session-index.json, scheduled-tasks.json","status":"completed","priority":"high","kind":{"kind":"todo"}}
     ]
   }
 }

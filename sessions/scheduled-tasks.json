@@ -1,0 +1,25 @@
+{
+  "scheduledTasks": [
+    {
+      "id": "subagentjobs-data-engineer-alert",
+      "cronExpression": "0 */6 * * *",
+      "enabled": true,
+      "filePath": "/Users/alex-opensubagents/subagentmcp/subagentceo/knowledge-engineering/cowork/artifacts/Scheduled/subagentjobs-data-engineer-alert/SKILL.md",
+      "createdAt": 1782003285029,
+      "userSelectedFolders": [
+        "/Users/alex-opensubagents/opencoworkers/subagentjobs"
+      ],
+      "lastRunAt": "2026-06-21T19:07:47.568Z",
+      "lastScheduledFor": "2026-06-21T19:00:00.000Z",
+      "approvedPermissions": [
+        {
+          "toolName": "mcp__Desktop_Commander__start_process"
+        },
+        {
+          "toolName": "mcp__Desktop_Commander__read_process_output"
+        }
+      ]
+    }
+  ],
+  "recordedSkips": {}
+}

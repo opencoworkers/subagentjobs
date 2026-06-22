@@ -1,0 +1,26 @@
+# Session data — large JSONL conversation transcripts, NOT version controlled.
+# Only .md docs, schemas, and lightweight metadata are committed.
+
+# Raw conversation transcripts (can be 5–30 MB each)
+*.jsonl
+audit.jsonl
+
+# Exported session JSON blobs
+local_*.json
+
+# Credentials and tokens — NEVER commit
+.env
+.env.local
+*.token
+oauth_token.txt
+CLAUDE_CODE_OAUTH_TOKEN
+
+# Cowork runtime caches
+cowork-*.json
+cowork-policy-limits-cache.json
+
+# But DO track these:
+!scheduled-tasks.json
+!session-index.json
+!*.md
+!*.toml

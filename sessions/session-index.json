@@ -1,0 +1,56 @@
+{
+  "schema_version": "0.1.0",
+  "workspace_session_id": "5af96f5e-8c3f-4aea-a817-47d68184874c",
+  "conversation_id": "098b24ed-f969-4f93-a46c-2c42abe0f9b7",
+  "sessions": [
+    {
+      "instance_id": "local_fafa287d-e4a1-481d-b489-c44bdca75bdd",
+      "started_at": "2026-06-20T17:12:00Z",
+      "last_active_at": "2026-06-21T17:16:00Z",
+      "transcript_bytes": 7126861,
+      "summary": "Primary session: ecosystem wiring (A2A bridge, vendor catalog, migration 006), type-safe agent system (agent-gen, 8 agents), macOS profiles (chat/cowork/code), engineering-coworker Rust MCP, Docker MCP profile macos__desktop_cowork__engineering_coworker, sessions/ scaffold"
+    },
+    {
+      "instance_id": "local_9ffb111e-122d-4f86-93d2-23e4d86c4d63",
+      "started_at": "2026-06-20T17:55:00Z",
+      "last_active_at": "2026-06-20T17:57:00Z",
+      "transcript_bytes": 159364,
+      "summary": "Early session: board configs, migrations, job alert scheduled task"
+    },
+    {
+      "instance_id": "local_798c21ca-6c3a-4b1a-a3c3-d968a1af1cda",
+      "started_at": "2026-06-20T17:55:00Z",
+      "last_active_at": "2026-06-20T18:11:00Z",
+      "transcript_bytes": 251438,
+      "summary": "ATS type-safety, resume pipeline, cloudflare skills"
+    },
+    {
+      "instance_id": "local_bd3af1ab-ed53-42d1-bc6b-3a649dbcdea1",
+      "started_at": "2026-06-21T00:08:00Z",
+      "last_active_at": "2026-06-21T01:24:00Z",
+      "transcript_bytes": 61267,
+      "summary": "Overnight session continuation"
+    },
+    {
+      "instance_id": "local_920d7a2d-7e6d-4a57-9397-6edef3a435b9",
+      "started_at": "2026-06-21T06:01:00Z",
+      "last_active_at": "2026-06-21T08:59:00Z",
+      "transcript_bytes": 85167,
+      "summary": "Morning session"
+    },
+    {
+      "instance_id": "local_e04fbc6b-7f82-430b-bc80-7ed3bee9fd90",
+      "started_at": "2026-06-21T12:07:00Z",
+      "last_active_at": "2026-06-21T12:08:00Z",
+      "transcript_bytes": 78958,
+      "summary": "Short session"
+    },
+    {
+      "instance_id": "local_8698eb02-9c6f-4676-88d0-53d2a97dd14f",
+      "started_at": "2026-06-21T14:55:00Z",
+      "last_active_at": "2026-06-21T15:21:00Z",
+      "transcript_bytes": 92696,
+      "summary": "Afternoon session"
+    }
+  ]
+}
