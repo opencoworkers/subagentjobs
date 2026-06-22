@@ -83,6 +83,13 @@ url         = "https://github.com/redis-rs/redis-rs"
 branch      = "main"
 description = "Rust Redis client — v1.x async API with tokio-comp + connection-manager + json features. Examine Pipeline::query_async usage patterns here."
 
+[[vendor]]
+org         = "anthropics"
+repo        = "claude-desktop-buddy"
+url         = "https://github.com/anthropics/claude-desktop-buddy"
+branch      = "main"
+description = "Claude Desktop Buddy — configurable via the Developer toolbar in Claude Desktop. Exposes hardware and inference configuration UI."
+
 # Add more repos as needed:
 # [[vendor]]
 # org     = "ggerganov"

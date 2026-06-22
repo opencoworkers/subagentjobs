@@ -38,3 +38,9 @@
 	url    = https://github.com/microsoft/duroxide-pg
 	branch = main
 	shallow = true
+
+[submodule "vendors/anthropics/claude-desktop-buddy"]
+	path   = vendors/anthropics/claude-desktop-buddy
+	url    = https://github.com/anthropics/claude-desktop-buddy
+	branch = main
+	shallow = true
