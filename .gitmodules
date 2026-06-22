@@ -15,9 +15,21 @@
 	branch = main
 	shallow = true
 
-[submodule "vendors/opensubagents/subagentjobs"]
-	path   = vendors/opensubagents/subagentjobs
-	url    = https://github.com/opensubagents/subagentjobs
+[submodule "vendors/modelcontextprotocol/typescript-sdk"]
+	path   = vendors/modelcontextprotocol/typescript-sdk
+	url    = https://github.com/modelcontextprotocol/typescript-sdk
+	branch = main
+	shallow = true
+
+[submodule "vendors/modelcontextprotocol/rust-sdk"]
+	path   = vendors/modelcontextprotocol/rust-sdk
+	url    = https://github.com/modelcontextprotocol/rust-sdk
+	branch = main
+	shallow = true
+
+[submodule "vendors/opencoworkers/subagentjobs"]
+	path   = vendors/opencoworkers/subagentjobs
+	url    = https://github.com/opencoworkers/subagentjobs
 	branch = main
 	shallow = true
 
@@ -36,6 +48,24 @@
 [submodule "vendors/microsoft/duroxide-pg"]
 	path   = vendors/microsoft/duroxide-pg
 	url    = https://github.com/microsoft/duroxide-pg
+	branch = main
+	shallow = true
+
+[submodule "vendors/a2aproject/a2a-rs"]
+	path   = vendors/a2aproject/a2a-rs
+	url    = https://github.com/a2aproject/a2a-rs
+	branch = main
+	shallow = true
+
+[submodule "vendors/a2aproject/a2a-js"]
+	path   = vendors/a2aproject/a2a-js
+	url    = https://github.com/a2aproject/a2a-js
+	branch = main
+	shallow = true
+
+[submodule "vendors/redis-rs/redis-rs"]
+	path   = vendors/redis-rs/redis-rs
+	url    = https://github.com/redis-rs/redis-rs
 	branch = main
 	shallow = true
 
