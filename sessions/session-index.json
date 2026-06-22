@@ -4,6 +4,22 @@
   "conversation_id": "098b24ed-f969-4f93-a46c-2c42abe0f9b7",
   "sessions": [
     {
+      "instance_id": "local_611ee02d-860d-4134-8a05-87e7b7bf2152",
+      "started_at": "2026-06-22T00:00:00Z",
+      "last_active_at": "2026-06-22T00:00:00Z",
+      "transcript_bytes": 0,
+      "summary": "Coworkers Buddy — screenshot utility, continue SwiftUI build",
+      "status": "running"
+    },
+    {
+      "instance_id": "local_2613553e-ca1c-48d9-a7c5-ae61d8ce8721",
+      "started_at": "2026-06-21T18:30:00Z",
+      "last_active_at": "2026-06-21T19:03:00Z",
+      "transcript_bytes": 0,
+      "summary": "Coworkers Buddy — SwiftUI virtual buddy, OAuth Bearer auth, session poller",
+      "status": "idle"
+    },
+    {
       "instance_id": "local_fafa287d-e4a1-481d-b489-c44bdca75bdd",
       "started_at": "2026-06-20T17:12:00Z",
       "last_active_at": "2026-06-21T17:16:00Z",
