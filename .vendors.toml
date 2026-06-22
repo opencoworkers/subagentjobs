@@ -97,3 +97,10 @@ description = "Claude Desktop Buddy — configurable via the Developer toolbar i
 # url     = "https://github.com/ggerganov/llama.cpp"
 # branch  = "master"
 # description = "Local LLM inference — CUDA/Metal/CPU backends, GGUF format"
+
+[[vendor]]
+org         = "anthropics"
+repo        = "ClaudeForFoundationModels"
+url         = "https://github.com/anthropics/ClaudeForFoundationModels"
+branch      = "main"
+description = "Apple Foundation Models integration — Swift/Xcode, macOS 26+. On-device inference via the Apple Intelligence stack. Relevant to coworkers-desktop-buddy macOS surface."

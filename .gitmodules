@@ -44,3 +44,9 @@
 	url    = https://github.com/anthropics/claude-desktop-buddy
 	branch = main
 	shallow = true
+
+[submodule "vendors/anthropics/ClaudeForFoundationModels"]
+	path   = vendors/anthropics/ClaudeForFoundationModels
+	url    = https://github.com/anthropics/ClaudeForFoundationModels
+	branch = main
+	shallow = true

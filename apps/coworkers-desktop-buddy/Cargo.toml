@@ -1,0 +1,27 @@
+[package]
+name        = "coworkers-desktop-buddy"
+version     = "0.1.0"
+edition     = "2021"
+description = "BLE bridge — forwards inference-runtime session state to a Claude Hardware Buddy device over Nordic UART Service"
+
+[[bin]]
+name = "coworkers-desktop-buddy"
+path = "src/main.rs"
+
+[dependencies]
+# Serialisation — mirrors the wire protocol from vendors/anthropics/claude-desktop-buddy/REFERENCE.md
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+
+# Async runtime
+tokio       = { version = "1", features = ["full"] }
+
+# BLE (macOS CoreBluetooth via btleplug)
+btleplug    = "0.11"
+
+# Logging
+tracing             = "0.1"
+tracing-subscriber  = { version = "0.3", features = ["env-filter"] }
+
+# Schema crate (shared TaskSession, AgentConfig types)
+schema = { path = "../../crates/schema" }
