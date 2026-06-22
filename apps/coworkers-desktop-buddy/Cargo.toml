@@ -1,3 +1,7 @@
+# Standalone package — excluded from the parent workspace so btleplug (macOS-only)
+# doesn't break cross-platform crates in the workspace build.
+[workspace]
+
 [package]
 name        = "coworkers-desktop-buddy"
 version     = "0.1.0"

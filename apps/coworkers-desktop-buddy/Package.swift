@@ -1,38 +1,48 @@
-// swift-tools-version: 6.0
-// Requires: Swift 6.0+ on Linux (Ubuntu 22.04 aarch64 or x86_64)
-// Install:  swift.org/install/linux
-//
-// No Apple FoundationModels dependency — ClaudeAPI is copied from
-// vendors/anthropics/ClaudeForFoundationModels/Sources/ClaudeAPI (Apache 2.0)
-// and uses only Foundation/URLSession which ship with Swift on Linux.
+// swift-tools-version: 6.2
+// macOS 27 + Xcode beta required (FoundationModels is OS 27+ only)
+// Build:
+//   DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
+//   CLAUDE_CODE_OAUTH_TOKEN=$(cat ~/.claude/.credentials.json | python3 -c \
+//     "import sys,json; print(json.load(sys.stdin)['claudeAiOauth']['accessToken'])") \
+//   COWORK_SESSIONS_DIR=/Users/alex-opensubagents/opencoworkers/subagentjobs/sessions \
+//   swift run BuddyApp
 
 import PackageDescription
 
 let package = Package(
   name: "coworkers-desktop-buddy",
-  platforms: [
-    // Linux has no platform constraint in SPM — these are fallbacks for macOS dev.
-    .macOS(.v13),
-  ],
+  platforms: [.macOS("27.0")],
   products: [
+    .executable(name: "BuddyApp", targets: ["BuddyApp"]),
+    // CLI fallback (--no-claude, Linux-compatible)
     .executable(name: "buddy", targets: ["BuddyCLI"]),
   ],
+  dependencies: [
+    // Real ClaudeForFoundationModels — uses FoundationModels on macOS 27
+    .package(path: "../../vendors/anthropics/ClaudeForFoundationModels"),
+  ],
   targets: [
-    // Copied from vendors/anthropics/ClaudeForFoundationModels/Sources/ClaudeAPI
-    // (Apache 2.0). access levels patched package→public for cross-target use.
-    .target(
-      name: "ClaudeAPI",
-      path: "Sources/ClaudeAPI"
-    ),
+    // HTTP client copied from ClaudeForFoundationModels for Linux CLI path
+    .target(name: "ClaudeAPIClient", path: "Sources/ClaudeAPI"),
 
-    // Core buddy logic — session polling, state modelling, Claude calls.
+    // Shared state + logic (no UI dependency)
     .target(
       name: "BuddyCore",
-      dependencies: ["ClaudeAPI"],
+      dependencies: ["ClaudeAPIClient"],
       path: "Sources/BuddyCore"
     ),
 
-    // CLI entry point — terminal display, argument parsing.
+    // SwiftUI visual app — macOS 27, uses real FoundationModels
+    .executableTarget(
+      name: "BuddyApp",
+      dependencies: [
+        "BuddyCore",
+        .product(name: "ClaudeForFoundationModels", package: "ClaudeForFoundationModels"),
+      ],
+      path: "Sources/BuddyApp"
+    ),
+
+    // Terminal CLI (Linux + macOS, no FoundationModels)
     .executableTarget(
       name: "BuddyCLI",
       dependencies: ["BuddyCore"],
