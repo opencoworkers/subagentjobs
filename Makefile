@@ -49,7 +49,8 @@ endef
         buddy buddy-build \
         atomic toolchain \
         crawl-docs index-docs redis-start redis-stop \
-        chrome-debug
+        chrome-debug \
+        db-start db-stop migrate env
 
 # ── Default ───────────────────────────────────────────────────────────────────
 
@@ -79,6 +80,11 @@ help:
 	@printf "  $(CYAN)make redis-start$(RESET)  start local Redis via Docker (port 6379)\n"
 	@printf "  $(CYAN)make redis-stop$(RESET)   stop local Redis container\n"
 	@printf "  $(CYAN)make chrome-debug$(RESET)  launch Chrome with --remote-debugging-port=9222\n"
+	@printf "\n  $(BOLD)Database + env$(RESET)\n"
+	@printf "  $(CYAN)make db-start$(RESET)     start local Postgres 16 via Docker (port 5432)\n"
+	@printf "  $(CYAN)make db-stop$(RESET)      stop local Postgres container\n"
+	@printf "  $(CYAN)make migrate$(RESET)      apply all Postgres migrations (needs DATABASE_URL)\n"
+	@printf "  $(CYAN)make env$(RESET)          source scripts/setup.sh (exports env vars)\n"
 	@printf "\n"
 
 # ── Quality pipeline ──────────────────────────────────────────────────────────
@@ -187,10 +193,16 @@ toolchain:
 
 # ── Docs crawler ──────────────────────────────────────────────────────────────
 
-# Crawl Claude documentation sources → docs/{host}/…  Requires DATABASE_URL + Redis.
+# Crawl Claude documentation sources → docs/{host}/…
+# With DATABASE_URL: full CDC mode (Redis + Postgres dedup).
+# Without DATABASE_URL: files-only mode (just writes .md files).
 crawl-docs:
 	$(call log,Running docs-crawler…)
-	RUSTC_WRAPPER="" cargo run -p docs-crawler
+	@if [ -n "$$DATABASE_URL" ]; then \
+	  RUSTC_WRAPPER="" cargo run -p docs-crawler; \
+	else \
+	  RUSTC_WRAPPER="" cargo run -p docs-crawler -- --files-only; \
+	fi
 
 # Index downloaded .md files into fact_filesystem + dim_file_ast for MCP search.
 index-docs:
@@ -217,4 +229,36 @@ chrome-debug:
 	  --user-data-dir=/tmp/chrome-devtools-mcp-profile 2>/dev/null \
 	  || printf "$(YELLOW)⚠  Chrome not found — install from https://google.com/chrome$(RESET)\n"
 	@printf "$(CYAN)  → Chrome DevTools MCP will connect to http://127.0.0.1:9222$(RESET)\n"
+
+# ── Database ──────────────────────────────────────────────────────────────────
+
+# Start local Postgres 16 via Docker.  DATABASE_URL = postgres://subagentjobs:subagentjobs@localhost/subagentjobs
+db-start:
+	$(call log,Starting Postgres 16 on :5432…)
+	@docker run -d --name subagentjobs-postgres -p 5432:5432 \
+	  -e POSTGRES_DB=subagentjobs \
+	  -e POSTGRES_USER=subagentjobs \
+	  -e POSTGRES_PASSWORD=subagentjobs \
+	  postgres:16-alpine \
+	  || docker start subagentjobs-postgres
+	@printf "$(CYAN)  → DATABASE_URL=postgresql://subagentjobs:subagentjobs@localhost/subagentjobs$(RESET)\n"
+
+db-stop:
+	$(call log,Stopping Postgres…)
+	@docker stop subagentjobs-postgres && docker rm subagentjobs-postgres
+
+# Apply every Postgres migration in order.  Requires DATABASE_URL.
+migrate:
+	$(call log,Applying Postgres migrations…)
+	@[ -n "$$DATABASE_URL" ] || (printf "$(YELLOW)⚠  DATABASE_URL not set$(RESET)\n" && exit 1)
+	@for f in crates/durable-store/migrations/postgres/*.sql; do \
+	  printf "$(CYAN)  → $$f$(RESET)\n"; \
+	  psql "$$DATABASE_URL" -f "$$f" 2>/dev/null || true; \
+	done
+	$(call log,Migrations done)
+
+# Export environment variables from scripts/setup.sh into the current shell.
+# Usage:  eval "$(make env)"  or  source <(make env)
+env:
+	@bash "$(REPO)/scripts/setup.sh" 2>/dev/null | grep -E "^export " || true
 

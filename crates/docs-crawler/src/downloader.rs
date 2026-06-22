@@ -14,15 +14,22 @@ impl Downloader {
         Self {
             client: reqwest::Client::builder()
                 .user_agent("subagentjobs-docs-crawler/1.0 (+https://subagentjobs.com)")
+                .timeout(std::time::Duration::from_secs(15))
                 .build()
                 .expect("reqwest client"),
         }
     }
 
-    /// Fetch `url`, trying the `.md` variant first if the URL doesn't already
-    /// end in `.md`.  Returns `None` when the page is unchanged (CDC check via
-    /// `DurableStore.check_and_record_doc_snapshot`).
-    pub async fn fetch(&self, url: &str, store: &DurableStore) -> Result<Option<DocPage>> {
+    /// Fetch `url`, trying the `.md` variant first.
+    ///
+    /// When `store` is `Some`, the content SHA256 is compared against the
+    /// Redis/Postgres CDC record and `None` is returned for unchanged pages.
+    /// When `store` is `None` (files-only mode), every reachable URL is returned.
+    pub async fn fetch(
+        &self,
+        url: &str,
+        store: Option<&DurableStore>,
+    ) -> Result<Option<DocPage>> {
         let md_url = if url.ends_with(".md") {
             url.to_string()
         } else {
@@ -41,10 +48,13 @@ impl Downloader {
         };
 
         let sha256 = DurableStore::sha256_hex(content.as_bytes());
-        let cdc = store.check_and_record_doc_snapshot(url, &sha256).await?;
-        if !cdc.changed {
-            debug!(url, "unchanged — skipping");
-            return Ok(None);
+
+        if let Some(s) = store {
+            let cdc = s.check_and_record_doc_snapshot(url, &sha256).await?;
+            if !cdc.changed {
+                debug!(url, "unchanged — skipping");
+                return Ok(None);
+            }
         }
 
         let parsed = Url::parse(url)?;
@@ -57,7 +67,7 @@ impl Downloader {
             path,
             sha256,
             content_md: Some(content),
-            admonitions: None, // populated by Harvester
+            admonitions: None,
             gfm: None,
             crawled_at: None,
         }))

@@ -36,9 +36,14 @@ struct Cli {
     )]
     cache_file: PathBuf,
 
-    /// Postgres connection URL.
-    #[arg(long, env = "DATABASE_URL")]
-    database_url: String,
+    /// Skip all Redis/Postgres operations — write .md files to disk only.
+    /// Use this when DATABASE_URL / REDIS_URL are not configured.
+    #[arg(long, default_value_t = false)]
+    files_only: bool,
+
+    /// Postgres connection URL.  Required unless --files-only is set.
+    #[arg(long, env = "DATABASE_URL", required_unless_present = "files_only")]
+    database_url: Option<String>,
 
     /// Redis connection URL.
     #[arg(long, env = "REDIS_URL", default_value = "redis://localhost:6379")]
@@ -51,8 +56,14 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    let store =
-        durable_store::DurableStore::connect(&cli.database_url, &cli.redis_url).await?;
+    let store = if cli.files_only {
+        tracing::info!("files-only mode — skipping Redis/Postgres");
+        None
+    } else {
+        let db_url = cli.database_url.as_deref().expect("DATABASE_URL required");
+        Some(durable_store::DurableStore::connect(db_url, &cli.redis_url).await?)
+    };
+
     let mut harvester = harvest::Harvester::load_cache(&cli.cache_file, cli.lru_capacity)?;
 
     let owned: Vec<String>;
@@ -63,7 +74,7 @@ async fn main() -> Result<()> {
         owned.iter().map(|s| s.as_str()).collect()
     };
 
-    crawler::crawl(&targets, &store, &cli.docs_root, &mut harvester).await?;
+    crawler::crawl(&targets, store, &cli.docs_root, &mut harvester).await?;
     harvester.save_cache(&cli.cache_file)?;
 
     Ok(())
