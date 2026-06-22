@@ -48,7 +48,8 @@ endef
         deploy-web deploy-cron \
         buddy buddy-build \
         atomic toolchain \
-        crawl-docs index-docs redis-start redis-stop
+        crawl-docs index-docs redis-start redis-stop \
+        chrome-debug
 
 # ── Default ───────────────────────────────────────────────────────────────────
 
@@ -77,6 +78,7 @@ help:
 	@printf "  $(CYAN)make index-docs$(RESET)   cargo run -p indexer -- --path docs/ (FTS index)\n"
 	@printf "  $(CYAN)make redis-start$(RESET)  start local Redis via Docker (port 6379)\n"
 	@printf "  $(CYAN)make redis-stop$(RESET)   stop local Redis container\n"
+	@printf "  $(CYAN)make chrome-debug$(RESET)  launch Chrome with --remote-debugging-port=9222\n"
 	@printf "\n"
 
 # ── Quality pipeline ──────────────────────────────────────────────────────────
@@ -205,4 +207,14 @@ redis-start:
 redis-stop:
 	$(call log,Stopping Redis…)
 	@docker stop subagentjobs-redis && docker rm subagentjobs-redis
+
+# Launch Chrome with remote-debugging enabled so chrome-devtools-mcp can connect.
+# Uses an isolated profile at /tmp/chrome-devtools-mcp-profile.
+chrome-debug:
+	$(call log,Opening Chrome with remote debugging on :9222…)
+	@open -a "Google Chrome" --args \
+	  --remote-debugging-port=9222 \
+	  --user-data-dir=/tmp/chrome-devtools-mcp-profile 2>/dev/null \
+	  || printf "$(YELLOW)⚠  Chrome not found — install from https://google.com/chrome$(RESET)\n"
+	@printf "$(CYAN)  → Chrome DevTools MCP will connect to http://127.0.0.1:9222$(RESET)\n"
 

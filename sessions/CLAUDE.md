@@ -127,9 +127,8 @@ These docs don't resolve yet but define the target architecture:
   {
     "id": "task-redis-start",
     "description": "Start local Redis for docs-crawler + durable-store: make redis-start (requires Docker). Verify: redis-cli ping",
-    "status": "pending",
-    "priority": "high",
-    "note": "Required before running crawl-docs or any durable-store Redis operations"
+    "status": "completed",
+    "note": "Redis 7-alpine running on :6379 (container: subagentjobs-redis). Verify: redis-cli ping → PONG"
   },
   {
     "id": "task-first-crawl",
