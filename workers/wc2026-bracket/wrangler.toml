@@ -1,0 +1,48 @@
+name = "wc2026-bracket"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# Repository: https://github.com/opencoworkers/subagentjobs
+# subagentdata.com — World Cup 2026 Round-of-32 radial bracket.
+# Design system + storage match workers/web: D1-backed, server-rendered HTML,
+# terminal aesthetic. Match data lives in D1 `subagentjobs-dwh` (dim_team +
+# fact_match), so score updates are plain SQL — no redeploy.
+
+[vars]
+GITHUB_REPO = "opencoworkers/subagentjobs"
+# Autonomous score ingestion source for the cron scheduled() handler. Point at
+# any agent-published JSON endpoint returning {matches:[{id,status,home_score,
+# away_score,winner,note}]}. Empty = cron is a safe no-op (no human required).
+SCORES_SOURCE_URL = ""
+
+# Cron Trigger: refresh scores agent-to-agent every 10 minutes, no human.
+[triggers]
+crons = ["*/10 * * * *"]
+
+# ── Data: D1 (shared warehouse, same binding name as workers/web) ────────────
+[[d1_databases]]
+binding = "DB"
+database_name = "subagentjobs-dwh"
+database_id = "305ed041-5dae-44e5-ab1f-8a63efd8627e"
+
+# ── Auth: Cloudflare Secrets Store (not a plaintext var) ─────────────────────
+# Bind a Secrets Store secret rather than `wrangler secret put`. Provision with:
+#   make bracket-secret      (creates store + WC2026_UPDATE_SECRET, prints ids)
+# then paste the printed store_id below. Access in code via:
+#   await env.UPDATE_SECRET.get()
+[[secrets_store_secrets]]
+binding = "UPDATE_SECRET"
+store_id = "REPLACE_WITH_SECRETS_STORE_ID"   # → make bracket-secret prints this
+secret_name = "WC2026_UPDATE_SECRET"
+
+# ── Observability + resource tagging ─────────────────────────────────────────
+# Resource tags (so the Worker, its D1 dataset and its secret are discoverable
+# as belonging to this project) are applied out-of-band via `make tag-resources`
+# / scripts/cf-tag-resources.sh, since wrangler.toml has no native tag field.
+# Tag value: github:opencoworkers/subagentjobs (see cloudflare.toml [meta].tag).
+[observability]
+enabled = true
+
+[[routes]]
+pattern = "subagentdata.com/*"
+zone_name = "subagentdata.com"

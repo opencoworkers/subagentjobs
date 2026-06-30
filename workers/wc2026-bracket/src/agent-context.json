@@ -1,0 +1,67 @@
+{
+  "service": "subagentdata.com",
+  "worker": "wc2026-bracket",
+  "summary": "FIFA World Cup 2026 Round-of-32 radial bracket. D1-backed, server-rendered, A2A-enabled. Designed to be operated agent-to-agent with no human in the loop.",
+  "cloudflare": {
+    "account_id": "e6294e3ea89f8207af387d459824aaae",
+    "account_label": "alex@jadecli.com",
+    "zone": "subagentdata.com",
+    "route": "subagentdata.com/*",
+    "tag": "github:opencoworkers/subagentjobs"
+  },
+  "repo": "opencoworkers/subagentjobs",
+  "source": "workers/wc2026-bracket",
+  "bindings": {
+    "DB": {
+      "type": "d1",
+      "database_name": "subagentjobs-dwh",
+      "database_id": "305ed041-5dae-44e5-ab1f-8a63efd8627e",
+      "tables": {
+        "dim_team": ["team_code", "name", "flag"],
+        "fact_match": ["match_id", "seq", "match_date", "venue", "status", "home_code", "away_code", "home_score", "away_score", "winner_code", "prob_home", "note", "r16_group", "updated_at"]
+      }
+    },
+    "UPDATE_SECRET": {
+      "type": "secrets_store",
+      "store": "subagentjobs",
+      "secret_name": "WC2026_UPDATE_SECRET",
+      "purpose": "Bearer token gating external POST /api/update. Resolve store_id from the Cloudflare Secrets Store API by name; never paste by hand."
+    },
+    "SCORES_SOURCE_URL": {
+      "type": "var",
+      "purpose": "Autonomous ingestion source. The scheduled() cron fetches this URL and applies the returned {matches:[delta]} to D1 — no human, no secret. Point it at any agent-published JSON endpoint (e.g. an A2A peer)."
+    }
+  },
+  "endpoints": {
+    "page": { "method": "GET", "path": "/" },
+    "bracket": { "method": "GET", "path": "/api/bracket", "returns": "{matches,r16,meta}" },
+    "status": { "method": "GET", "path": "/api/status", "returns": "{updated,done,live,upcoming,total,results}" },
+    "update": { "method": "POST", "path": "/api/update", "auth": "Bearer UPDATE_SECRET (omit if secret unset)", "body": "{matches:[delta]}" },
+    "agent_card": { "method": "GET", "path": "/.well-known/agent-card.json" },
+    "agent_context": { "method": "GET", "path": "/.well-known/agent-context.json", "note": "this document, augmented with live binding presence" },
+    "a2a": { "method": "POST", "path": "/a2a", "note": "A2A tasks/send → bracket data artifact" },
+    "health": { "method": "GET", "path": "/health" }
+  },
+  "update_protocol": {
+    "match_delta": {
+      "id": "M01..M16 (fact_match.match_id)",
+      "status": "scheduled | in_progress | final",
+      "home_score": "int|null",
+      "away_score": "int|null",
+      "winner": "team_code|null (set when final)",
+      "note": "string|null (e.g. 'AET', 'pens 4-2', \"62'\")"
+    },
+    "channels": [
+      "cron scheduled() + SCORES_SOURCE_URL — fully autonomous, internal, no auth",
+      "POST /api/update with Bearer UPDATE_SECRET — agent-to-agent push",
+      "direct D1 write via the Cloudflare D1 API/connector (account+database_id above)"
+    ],
+    "human_in_loop": false
+  },
+  "operate_without_human": {
+    "update_scores": "Set SCORES_SOURCE_URL to an agent-published JSON endpoint; the worker self-refreshes on its cron. Or POST deltas to /api/update. Or write fact_match directly via the D1 connector.",
+    "deploy": "CI (.github/workflows/wc2026.yml) deploys wc2026-bracket on merge to main. Resolve the Secrets Store store_id from the CF API by name at deploy time.",
+    "migrate": "workers/wc2026-bracket/migrations/*.sql, idempotent; apply via the D1 connector or `make migrate-bracket`.",
+    "verify": "make bracket-render-test (Chrome Canary, iPhone 16 Pro emulation)."
+  }
+}

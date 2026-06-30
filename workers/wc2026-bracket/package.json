@@ -1,0 +1,21 @@
+{
+  "name": "subagentjobs-wc2026",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "tsc --noEmit",
+    "migrate": "wrangler d1 execute subagentjobs-dwh --remote --file migrations/0001_bracket.sql",
+    "migrate:local": "wrangler d1 execute subagentjobs-dwh --local --file migrations/0001_bracket.sql",
+    "preview": "node scripts/render-preview.mjs",
+    "install:canary": "playwright install chromium-tip-of-tree",
+    "test:render": "npm run preview && playwright test"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260620.1",
+    "@playwright/test": "^1.50.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5",
+    "wrangler": "^4"
+  }
+}

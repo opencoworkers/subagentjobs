@@ -8,14 +8,24 @@ zone    = "5fd255b7f2c7ae2ebd301806ca70e65c"  # subagentjobs.com
 tag     = "github:opencoworkers/subagentjobs"
 
 [workers]
-web     = "subagentjobs-web"     # subagentjobs.com/* — Hono TS, D1 read-only
-etl     = "subagentjobs-etl"     # CDC crawler (JS shim → Rust MCP, deprecated)
-enrich  = "subagentjobs-enrich"  # taxonomy enrichment (JS, deprecated)
-# next:  subagentjobs-mcp        # Rust MCP server binary (task-state-machine)
+web      = "subagentjobs-web"      # subagentjobs.com/* — Hono TS, D1 read-only
+wc2026   = "wc2026-bracket"        # subagentdata.com/* — WC2026 bracket, D1 + Secrets Store
+etl      = "subagentjobs-etl"      # CDC crawler (JS shim → Rust MCP, deprecated)
+enrich   = "subagentjobs-enrich"   # taxonomy enrichment (JS, deprecated)
+# next:   subagentjobs-mcp         # Rust MCP server binary (task-state-machine)
 
 [d1]
-dwh = "305ed041-5dae-44e5-ab1f-8a63efd8627e"  # subagentjobs-dwh (Kimball)
+dwh = "305ed041-5dae-44e5-ab1f-8a63efd8627e"  # subagentjobs-dwh (Kimball; + dim_team/fact_match)
+
+# Cloudflare Secrets Store — secrets bound to Workers (not plaintext vars).
+# store_id is created by `make bracket-secret`; paste it into the worker's
+# wrangler.toml [[secrets_store_secrets]].store_id.
+[secrets_store]
+store    = "subagentjobs"          # store name
+# wc2026 update auth secret:
+wc2026_update = "WC2026_UPDATE_SECRET"
 
 [dns]
-root = "subagentjobs.com"
-www  = "www.subagentjobs.com"
+root     = "subagentjobs.com"
+www      = "www.subagentjobs.com"
+data     = "subagentdata.com"      # WC2026 bracket worker

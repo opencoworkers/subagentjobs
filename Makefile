@@ -46,6 +46,8 @@ endef
         qa simplify review commit pr clean-br setup \
         check test test-rust test-swift \
         deploy-web deploy-cron \
+        bracket-setup build-bracket bracket-install-channels deploy-bracket-full \
+        deploy-bracket migrate-bracket bracket-secret tag-resources bracket-update bracket-render-test \
         buddy buddy-build \
         atomic toolchain \
         crawl-docs index-docs redis-start redis-stop \
@@ -72,6 +74,17 @@ help:
 	@printf "  $(CYAN)make test$(RESET)         cargo test + swift test\n"
 	@printf "  $(CYAN)make deploy-web$(RESET)   wrangler deploy workers/web\n"
 	@printf "  $(CYAN)make deploy-cron$(RESET)  wrangler deploy workers/cron\n"
+	@printf "\n  $(BOLD)wc2026 bracket (subagentdata.com)$(RESET)\n"
+	@printf "  $(CYAN)make bracket-setup$(RESET)    toolchain: npm deps + experimental Chrome (Canary)\n"
+	@printf "  $(CYAN)make build-bracket$(RESET)    typecheck + bundle (wrangler dry-run)\n"
+	@printf "  $(CYAN)make deploy-bracket$(RESET)   build then wrangler deploy\n"
+	@printf "  $(CYAN)make deploy-bracket-full$(RESET) build → migrate → deploy → tag (post-merge)\n"
+	@printf "  $(CYAN)make migrate-bracket$(RESET)  apply dim_team/fact_match to D1 subagentjobs-dwh\n"
+	@printf "  $(CYAN)make bracket-secret$(RESET)   provision Secrets Store WC2026_UPDATE_SECRET\n"
+	@printf "  $(CYAN)make tag-resources$(RESET)    tag CF Worker + D1 + secret with the repo tag\n"
+	@printf "  $(CYAN)make bracket-update$(RESET)   update live scores via claude -p subagent worker\n"
+	@printf "  $(CYAN)make bracket-render-test$(RESET) iPhone 16 Pro render test on Chrome Canary\n"
+	@printf "  $(CYAN)make bracket-install-channels$(RESET) add Chrome Beta + Dev channels\n"
 	@printf "  $(CYAN)make buddy$(RESET)        build + launch BuddyApp (macOS)\n"
 	@printf "  $(CYAN)make atomic$(RESET)       scripts/commit-tested.sh (test-gated commits)\n"
 	@printf "  $(CYAN)make toolchain$(RESET)    install full toolchain (mac or linux)\n"
@@ -169,6 +182,86 @@ deploy-web:
 deploy-cron:
 	$(call log,Deploying workers/cron…)
 	cd "$(REPO)/workers/cron" && wrangler deploy 2>&1
+
+# ── wc2026 bracket worker (subagentdata.com) ─────────────────────────────────
+WC2026 := $(REPO)/workers/wc2026-bracket
+
+# Centralised toolchain bootstrap for the worker: npm deps + experimental Chrome
+# (Canary / tip-of-tree) + optional beta/dev channels. Single entrypoint, called
+# both here and by scripts/toolchain/setup-linux.sh.
+bracket-setup:
+	$(call log,Bootstrapping subagentdata.com worker toolchain…)
+	@bash "$(REPO)/scripts/wc2026/setup.sh"
+
+# Install the experimental Chrome Beta + Dev channels (in addition to Canary).
+bracket-install-channels:
+	$(call log,Installing Chrome Beta + Dev channels…)
+	@WC2026_INSTALL_CHANNELS=1 bash "$(REPO)/scripts/wc2026/setup.sh"
+
+# Build the worker: typecheck + bundle via wrangler dry-run (no deploy, offline).
+# Proves the Worker compiles and bundles before we ship it.
+build-bracket:
+	$(call log,Building workers/wc2026-bracket (typecheck + bundle)…)
+	cd "$(WC2026)" && npm run check 2>&1
+	cd "$(WC2026)" && npx wrangler deploy --dry-run --outdir dist 2>&1
+
+# Deploy the bracket worker. Requires the Secrets Store secret to exist and its
+# store_id pasted into workers/wc2026-bracket/wrangler.toml (see bracket-secret).
+deploy-bracket: build-bracket
+	$(call log,Deploying workers/wc2026-bracket…)
+	cd "$(WC2026)" && wrangler deploy 2>&1
+
+# Full ship: build → migrate D1 → deploy → tag resources. The post-merge path.
+deploy-bracket-full: build-bracket migrate-bracket deploy-bracket tag-resources
+	$(call log,subagentdata.com fully deployed)
+
+# Apply all bracket D1 migrations in order (schema + seed + latest scores) to
+# subagentjobs-dwh. Idempotent — migrations are CREATE IF NOT EXISTS / UPDATE.
+migrate-bracket:
+	$(call log,Applying wc2026 bracket migrations to D1 subagentjobs-dwh…)
+	@for f in "$(WC2026)"/migrations/*.sql; do \
+	  printf "$(CYAN)  → %s$(RESET)\n" "$$(basename $$f)"; \
+	  (cd "$(WC2026)" && wrangler d1 execute subagentjobs-dwh --remote --file "$$f" 2>&1) || exit 1; \
+	done
+	$(call log,Bracket migrations applied)
+
+# Provision the Cloudflare Secrets Store secret used to authenticate /api/update.
+# Creates the store if needed, writes WC2026_UPDATE_SECRET, prints the store_id
+# to paste into the worker's wrangler.toml [[secrets_store_secrets]].store_id.
+bracket-secret:
+	$(call log,Provisioning Secrets Store secret WC2026_UPDATE_SECRET…)
+	@cd "$(WC2026)" && wrangler secrets-store store create subagentjobs 2>/dev/null \
+	  || printf "$(CYAN)  → store 'subagentjobs' already exists$(RESET)\n"
+	@cd "$(WC2026)" && wrangler secrets-store secret create subagentjobs \
+	  --name WC2026_UPDATE_SECRET --scopes workers 2>&1 || true
+	@printf "$(YELLOW)  → paste the printed store_id into workers/wc2026-bracket/wrangler.toml$(RESET)\n"
+
+# Device-emulated render test: builds an offline preview and drives it through
+# Chromium at iPhone 16 Pro metrics (DPR 3, P3, touch) to verify the radial
+# graph renders crisply with no console errors.
+bracket-render-test:
+	$(call log,Running iPhone 16 Pro render tests (Playwright + Chromium)…)
+	@cd "$(WC2026)" && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm run test:render 2>&1
+
+# Tag every Cloudflare resource for this deployment (Worker + D1 + secret) with
+# the repo tag from cloudflare.toml, so they are discoverable as a group.
+tag-resources:
+	$(call log,Tagging Cloudflare resources for the wc2026 deployment…)
+	@bash "$(REPO)/scripts/cf-tag-resources.sh"
+
+# Update live scores via a claude -p subagent worker. The subagent fetches the
+# latest WC2026 Round-of-32 results, diffs them against D1, and POSTs the deltas
+# to /api/update — no manual SQL, no redeploy.  (Same pattern as make review/pr.)
+bracket-update: _guard-claude
+	$(call log,Running bracket-updater subagent (claude -p)…)
+	@$(CLAUDE) -p "You are the wc2026 bracket updater. Fetch the latest FIFA World \
+	  Cup 2026 Round-of-32 results and fixtures. The live bracket API is at \
+	  https://subagentdata.com/api/bracket (current state) and \
+	  https://subagentdata.com/api/status (summary). For any match whose score or \
+	  status changed, build a JSON body {matches:[{id,status,home_score,away_score,\
+	  winner,note}]} using the M01..M16 match ids from /api/bracket, and POST it to \
+	  https://subagentdata.com/api/update with header 'Authorization: Bearer '\$$WC2026_UPDATE_SECRET. \
+	  Only include changed matches. Print a one-line summary of what you updated."
 
 # ── BuddyApp (macOS) ─────────────────────────────────────────────────────────
 
