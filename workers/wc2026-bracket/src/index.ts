@@ -382,11 +382,44 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
 .sl-m{color:var(--mut);font-weight:400}
 .footer{text-align:center;padding:16px;font-size:10px;color:var(--dim);border-top:1px solid #1a1a1a}
 .footer a{color:var(--cyan);text-decoration:none}
-/* graph — contain limits layout/paint to the canvas box */
-#graph-wrap{height:min(78vw,440px);position:relative;border:1px solid var(--line2);
+/* graph — SVG (crisp vectors, real DOM nodes, a11y). contain limits paint. */
+#graph-wrap{height:min(86vw,460px);position:relative;border:1px solid var(--line2);
   background:var(--panel);overflow:hidden;contain:layout paint}
-#gcanvas,#lcanvas{position:absolute;top:0;left:0;width:100%;height:100%}
-#gcanvas{touch-action:none}#lcanvas{pointer-events:none}
+#svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.ring{fill:none;stroke:#141414;stroke-width:.25}.ring.out{stroke:#1c1c1c}
+.lk{fill:none;stroke-linecap:round}
+.crest{font-size:4px;text-anchor:middle;dominant-baseline:central}
+.code{font-family:ui-monospace,monospace;font-weight:400;font-size:1.5px;text-anchor:middle;dominant-baseline:central}
+.trophy{font-size:5.5px;text-anchor:middle;dominant-baseline:central}
+.node{cursor:pointer}
+.node .hit{fill:transparent}
+.node .dot{stroke-width:.3}
+.node .foc{fill:none;stroke:none}
+.node:focus{outline:none}
+.node:focus .foc,.node[data-sel] .foc{stroke:var(--cyan);stroke-width:.4}
+.node .sc{font-family:ui-monospace,monospace;font-weight:600;font-size:2.1px;text-anchor:middle;dominant-baseline:central}
+.node .sc.pk{font-size:1.7px}
+.node.live .dot{animation:pdot 1.2s ease-in-out infinite}
+@keyframes pdot{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.node.live .dot{animation:none}}
+/* focus+context match detail — CSS anchor positioning + @position-try */
+#detail{display:block;position:fixed;margin:0;border:1px solid var(--line2);background:#0e0e0eee;color:var(--txt);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:12px;padding:12px 14px;width:min(280px,86vw);z-index:6;
+  position-anchor:--sel;top:anchor(bottom);left:anchor(center);translate:-50% 8px;inset:auto;
+  position-try-fallbacks:flip-block,flip-inline,flip-block flip-inline}
+@supports not (anchor-name:--x){#detail{left:50%;bottom:14px;top:auto;translate:-50% 0}}
+#detail[hidden]{display:none}
+#detail .dh{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.08em;color:var(--mut);text-transform:uppercase;margin-bottom:8px}
+#detail .dlive{color:var(--red)}
+#detail .drow{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:14px}
+#detail .drow .fl{font-size:17px}.drow .nm{flex:1}.drow .dsc{font-weight:600;color:var(--cyan)}
+#detail .drow .dsc .p{font-size:10px;font-weight:400;color:var(--mut);margin-left:1px}
+#detail .drow[data-s=won] .nm{color:var(--cyan);font-weight:600}
+#detail .drow[data-s=lost] .nm{color:var(--mut)}
+#detail .dsep{height:1px;background:var(--line);margin:2px 0}
+#detail .dnote{margin-top:8px;font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+#detail .dclose{position:absolute;top:5px;right:9px;color:var(--mut);background:none;border:none;font-size:15px;cursor:pointer}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .zc{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:6px;z-index:2}
 .zc button{width:34px;height:34px;border:1px solid var(--line2);background:rgba(10,10,10,.72);
   color:var(--cyan);font-size:17px;line-height:1;font-family:var(--mono,inherit);border-radius:8px;cursor:pointer;
@@ -464,156 +497,104 @@ export function page(matches: ShapedMatch[]): string {
   //    schedule a single coalesced frame.
   //  • prefers-reduced-motion disables the blink loop entirely.
   const js = [
-    'var DATA=null,nodes=[],pan={x:0,y:0},GR={cx:0,cy:0,R:1};',
-    'var Z=1,LT=null,LD=null,LC=null,PINCH=false,MINZ=0.6,MAXZ=6,easeRAF=0;',
-    'var GW=0,GH=0,DPR=1,gctx=null,lctx=null,pending=false,blinkRAF=0;',
+    // SVG rebuild (research-backed): the bracket is real DOM — crisp vectors at any
+    // zoom/DPR, native tap targets + :focus, screen-reader text. The d3 symmetric
+    // tree (DATA.graph) maps to SVG; pan/zoom transform one camera <g>, so nodes
+    // stay addressable. P(ang,r) projects into the 0..100 viewBox.
+    'var DATA=null,Z=1,px=0,py=0,LT=null,LD=null,LC=null,PINCH=false,MINZ=0.6,MAXZ=6,easeRAF=0,selId=null;',
     'var RM=(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)||false;',
-    'function ctx2d(c){try{return c.getContext("2d",{desynchronized:true,colorSpace:"display-p3"});}',
-    '  catch(e){try{return c.getContext("2d",{desynchronized:true});}catch(e2){return c.getContext("2d");}}}',
-    'function hasLive(){return !!(DATA&&DATA.matches.some(function(m){return m.status==="in_progress";}));}',
-    'function blinkV(){return RM?1:(0.5+0.5*Math.sin((performance.now()/1000)*Math.PI*1.2));}',
+    'var SVGNS="http://www.w3.org/2000/svg";',
+    'function svel(n,at){var e=document.createElementNS(SVGNS,n);for(var k in at)e.setAttribute(k,at[k]);return e;}',
+    'function col(s){return s==="adv"?"#7bd88f":s==="live"?"#f47067":s==="up"?"#51c4ff":s==="elim"?"#2a2a2a":"#242424";}',
+    'function lcol(s){return s==="adv"?"#15321f":s==="live"?"#3a0f0f":s==="up"?"#12222d":"#181818";}',
+    'function fillc(s){return s==="live"?"#2a0f0f":s==="adv"?"#0f2417":"#111";}',
+    'function P(ang,r){return [50+Math.cos(ang)*r*40,50+Math.sin(ang)*r*40];}',
+    'function mById(id){if(!DATA)return null;for(var i=0;i<DATA.matches.length;i++)if(DATA.matches[i].id===id)return DATA.matches[i];return null;}',
     'function swapTab(name,el){',
     '  document.querySelectorAll("nav a").forEach(function(a){a.classList.remove("active");});',
     '  el.classList.add("active");',
-    '  ["bracket","matches"].forEach(function(t){',
-    '    var s=document.getElementById("tab-"+t);if(s)s.style.display=(t===name?"":"none");',
-    '  });',
-    '  if(name==="bracket"){resize();startBlink();}',
+    '  ["bracket","matches"].forEach(function(t){var s=document.getElementById("tab-"+t);if(s)s.style.display=(t===name?"":"none");});',
     '}',
-    // SOTA: View Transitions API (same-document, Chrome 111+) cross-fades tabs.
-    // Feature-detected + skipped under reduced-motion.
-    // Ref: https://developer.chrome.com/docs/web-platform/view-transitions/same-document
     'function showTab(name,el){',
     '  if(RM||!document.startViewTransition){swapTab(name,el);return;}',
     '  document.startViewTransition(function(){swapTab(name,el);});',
     '}',
     'function loadGraph(){',
     '  fetch("/api/bracket").then(function(r){return r.json();}).then(function(d){',
-    '    DATA=d;resize();startBlink();',
+    '    DATA=d;buildSVG();if(/^#M\\d\\d$/.test(location.hash))selectMatch(location.hash.slice(1));',
     '  });',
     '}',
-    'var TROPHY="\\uD83C\\uDFC6";',
-    'function col(s){return s==="adv"?"#7bd88f":s==="live"?"#f47067":s==="up"?"#51c4ff":s==="elim"?"#2a2a2a":"#242424";}',
-    'function lcol(s){return s==="adv"?"#15321f":s==="live"?"#3a0f0f":s==="up"?"#12222d":"#181818";}',
-    // build(): project the server-computed symmetric radial tree (DATA.graph,
-    // laid out by d3-hierarchy) into screen coordinates. Polar: world =
-    // centre + (cos,sin)(ang) · r · R, with r in [0,1] (0 = trophy, 1 = teams).
-    'function build(W,H){',
-    '  if(!DATA||!DATA.graph)return;nodes=[];',
-    '  var cx=W/2,cy=H/2,R=Math.min(W,H)*0.40;GR={cx:cx,cy:cy,R:R};',
-    '  DATA.graph.nodes.forEach(function(g){',
-    '    nodes.push({g:g,x:cx+Math.cos(g.ang)*g.r*R,y:cy+Math.sin(g.ang)*g.r*R,',
-    '      sz:g.k==="team"?0:g.k==="match"?(g.live?9:g.st==="adv"?8:6):g.k==="r16"?3.5:g.k==="final"?0:2.5});',
-    '  });',
+    'function buildSVG(){',
+    '  if(!DATA||!DATA.graph)return;',
+    '  var LK=document.getElementById("g-links"),ND=document.getElementById("g-nodes"),SR=document.getElementById("srlist");',
+    '  LK.textContent="";ND.textContent="";if(SR)SR.textContent="";var N=DATA.graph.nodes;',
+    '  DATA.graph.links.forEach(function(L){var a=N[L[0]],b=N[L[1]];if(!a||!b)return;',
+    '    var pb=P(b.ang,b.r),pa=P(a.ang,a.r),pm=P(b.ang,(a.r+b.r)*0.5);',
+    '    LK.appendChild(svel("path",{"class":"lk",d:"M"+pb[0]+" "+pb[1]+"Q"+pm[0]+" "+pm[1]+" "+pa[0]+" "+pa[1],stroke:lcol(b.st),"stroke-width":b.k==="team"?0.5:0.7}));});',
+    '  N.forEach(function(g){var p=P(g.ang,g.r);',
+    '    if(g.k==="final"){var tr=svel("text",{"class":"trophy",x:50,y:50});tr.textContent="\\uD83C\\uDFC6";ND.appendChild(tr);return;}',
+    '    if(g.k==="team"){var gg=svel("g",{"class":"tm"});',
+    '      var fl=svel("text",{"class":"crest",x:p[0],y:p[1]});fl.textContent=g.flag;gg.appendChild(fl);',
+    '      var d=Math.hypot(p[0]-50,p[1]-50)||1,ux=(p[0]-50)/d,uy=(p[1]-50)/d;',
+    '      var cd=svel("text",{"class":"code",x:p[0]+ux*3.4,y:p[1]+uy*3.4,fill:g.st==="adv"?"#7bd88f":g.st==="elim"?"#333":"#8a8a8a"});cd.textContent=g.code;gg.appendChild(cd);',
+    '      ND.appendChild(gg);return;}',
+    '    var rad=g.k==="match"?(g.live?2.2:g.st==="adv"?2:1.6):g.k==="r16"?0.9:0.7;',
+    '    var node=svel("g",{"class":"node"+(g.live?" live":"")});',
+    '    if(g.mid){node.setAttribute("data-id",g.mid);node.setAttribute("tabindex","0");node.setAttribute("role","button");}',
+    '    node.appendChild(svel("circle",{"class":"hit",cx:p[0],cy:p[1],r:3.6}));',
+    '    node.appendChild(svel("circle",{"class":"foc",cx:p[0],cy:p[1],r:rad+1.3}));',
+    '    node.appendChild(svel("circle",{"class":"dot",cx:p[0],cy:p[1],r:rad,fill:fillc(g.st),stroke:col(g.st)}));',
+    '    if(g.k==="match"&&g.score){var sc=svel("text",{"class":"sc"+(g.score.indexOf("(")>=0?" pk":""),x:p[0],y:p[1],fill:g.live?"#f47067":"#51c4ff"});sc.textContent=g.score;node.appendChild(sc);}',
+    '    if(g.mid){var m=mById(g.mid),lab=m?(m.home.n+" versus "+m.away.n+(m.s?" "+m.s.h+" "+m.s.a:"")):g.mid;',
+    '      var ti=svel("title");ti.textContent=lab;node.appendChild(ti);node.setAttribute("aria-label",lab);',
+    '      node.addEventListener("click",function(ev){ev.stopPropagation();selectMatch(g.mid);});',
+    '      node.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();selectMatch(g.mid);}});',
+    '      if(SR){var li=document.createElement("li"),aa=document.createElement("a");aa.href="#"+g.mid;aa.textContent=lab;',
+    '        aa.addEventListener("click",function(){selectMatch(g.mid);});li.appendChild(aa);SR.appendChild(li);}}',
+    '    ND.appendChild(node);});',
+    '  applyCam();',
     '}',
-    'function draw(W,H,blink){',
-    '  if(!gctx||!DATA.graph)return;gctx.setTransform(1,0,0,1,0,0);gctx.clearRect(0,0,W*DPR,H*DPR);',
-    '  gctx.setTransform(DPR,0,0,DPR,0,0);gctx.translate(pan.x,pan.y);gctx.scale(Z,Z);',
-    '  var cx=GR.cx,cy=GR.cy,R=GR.R;',
-    '  [0.2,0.4,0.6,0.8,1].forEach(function(rf){gctx.beginPath();gctx.arc(cx,cy,rf*R,0,Math.PI*2);',
-    '    gctx.strokeStyle=rf===1?"#1c1c1c":"#141414";gctx.lineWidth=1;gctx.stroke();});',
-    // links: child (outer) → parent (inner), a gentle radial curve (control bent
-    // along the child angle) — the classic radial-bracket connector.
-    '  DATA.graph.links.forEach(function(L){var a=nodes[L[0]],b=nodes[L[1]];if(!a||!b)return;',
-    '    var mr=(a.g.r+b.g.r)*0.5*R,mx=cx+Math.cos(b.g.ang)*mr,my=cy+Math.sin(b.g.ang)*mr;',
-    '    gctx.beginPath();gctx.moveTo(b.x,b.y);gctx.quadraticCurveTo(mx,my,a.x,a.y);',
-    '    gctx.strokeStyle=lcol(b.g.st);gctx.lineWidth=b.g.k==="team"?1:1.3;gctx.stroke();});',
-    // round nodes (match / R16 / QF / SF). Team leaves + trophy live on the label layer.
-    '  nodes.forEach(function(nd){var g=nd.g;if(g.k==="team"||g.k==="final"||nd.sz<=0)return;',
-    '    var al=g.live?(0.55+0.45*blink):1;gctx.globalAlpha=al;',
-    '    gctx.beginPath();gctx.arc(nd.x,nd.y,nd.sz,0,Math.PI*2);',
-    '    gctx.fillStyle=g.st==="live"?"#2a0f0f":g.st==="adv"?"#0f2417":"#111";gctx.fill();',
-    '    gctx.strokeStyle=col(g.st);gctx.lineWidth=g.k==="match"?1.3:1;gctx.stroke();gctx.globalAlpha=1;});',
-    '  gctx.setTransform(1,0,0,1,0,0);',
+    'function fmtSc(v,pk){return v==null?"\\u2013":v+(pk!=null?"<span class=p>("+pk+")</span>":"");}',
+    'function selectMatch(id){if(document.startViewTransition&&!RM)document.startViewTransition(function(){doSelect(id);});else doSelect(id);}',
+    'function doSelect(id){var m=mById(id);if(!m)return;',
+    '  var prev=document.querySelector(".node[data-sel]");if(prev){prev.removeAttribute("data-sel");prev.style.removeProperty("anchor-name");}',
+    '  var node=document.querySelector(".node[data-id="+id+"]");',
+    '  if(node){node.setAttribute("data-sel","");node.style.setProperty("anchor-name","--sel");}selId=id;',
+    '  var d=document.getElementById("detail"),fin=m.status==="final",hW=fin&&m.w===m.home.c,aW=fin&&m.w===m.away.c;',
+    '  d.innerHTML="<button class=dclose aria-label=close>\\u00d7</button>"+',
+    '    "<div class=dh><span>"+m.id+" \\u00b7 "+(m.date||"")+"</span><span>"+(m.status==="in_progress"?"<b class=dlive>live</b>":(m.venue||""))+"</span></div>"+',
+    '    "<div class=drow data-s="+(hW?"won":fin?"lost":"none")+"><span class=fl>"+m.home.f+"</span><span class=nm>"+m.home.n+"</span><span class=dsc>"+fmtSc(m.s?m.s.h:null,m.pk?m.pk.h:null)+"</span></div>"+',
+    '    "<div class=dsep></div>"+',
+    '    "<div class=drow data-s="+(aW?"won":fin?"lost":"none")+"><span class=fl>"+m.away.f+"</span><span class=nm>"+m.away.n+"</span><span class=dsc>"+fmtSc(m.s?m.s.a:null,m.pk?m.pk.a:null)+"</span></div>"+',
+    '    (m.note?"<div class=dnote>"+m.note+"</div>":"");',
+    '  d.querySelector(".dclose").addEventListener("click",deselect);d.hidden=false;',
+    '  if(location.hash!=="#"+id)history.replaceState(null,"","#"+id);',
     '}',
-    // Label layer shares the EXACT world transform, so the trophy (world centre),
-    // team crests and scores stay locked to the graph at any zoom/pan.
-    'function labels(W,H){',
-    '  if(!lctx||!DATA.graph)return;var x=lctx;x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,W*DPR,H*DPR);',
-    '  x.setTransform(DPR,0,0,DPR,0,0);x.translate(pan.x,pan.y);x.scale(Z,Z);',
-    '  var cx=GR.cx,cy=GR.cy;x.textAlign="center";x.textBaseline="middle";',
-    '  x.font="20px serif";x.fillText(TROPHY,cx,cy);',
-    '  nodes.forEach(function(nd){var g=nd.g;',
-    '    if(g.k==="team"){',
-    '      x.font="15px serif";x.fillText(g.flag,nd.x,nd.y);',
-    '      var d=Math.hypot(nd.x-cx,nd.y-cy)||1,ux=(nd.x-cx)/d,uy=(nd.y-cy)/d;',
-    '      x.font="400 6px ui-monospace,monospace";x.fillStyle=g.st==="adv"?"#7bd88f":g.st==="elim"?"#333":"#8a8a8a";',
-    '      x.fillText(g.code,nd.x+ux*10,nd.y+uy*10);',
-    '    }else if(g.k==="match"&&g.score){',
-    '      x.font="600 "+(g.score.indexOf("(")>=0?6:7)+"px ui-monospace,monospace";',
-    '      x.fillStyle=g.live?"#f47067":"#51c4ff";x.fillText(g.score,nd.x,nd.y);',
-    '    }',
-    '  });',
-    '  x.setTransform(1,0,0,1,0,0);',
-    '}',
-    // Node layout depends only on DATA + canvas size, so build() runs in resize()
-    // /loadGraph — not per frame. render() (called on every blink/pan/zoom frame)
-    // just redraws.
-    'function render(blink){if(!DATA||!GW)return;draw(GW,GH,blink==null?blinkV():blink);labels(GW,GH);}',
-    // coalesce on-demand draws into a single rAF
-    'function schedule(){if(pending)return;pending=true;requestAnimationFrame(function(){pending=false;render();});}',
-    // continuous loop ONLY while a match is live; self-terminates otherwise
-    'function startBlink(){if(RM||blinkRAF||!hasLive())return;',
-    '  (function f(){if(!hasLive()){blinkRAF=0;render(1);return;}render();blinkRAF=requestAnimationFrame(f);})();}',
-    'function resize(){',
-    '  var w=document.getElementById("graph-wrap");if(!w||w.offsetParent===null)return;',
-    '  GW=w.clientWidth;GH=w.clientHeight;DPR=Math.min(window.devicePixelRatio||1,3);',
-    '  var gc=document.getElementById("gcanvas"),lc=document.getElementById("lcanvas");',
-    '  gc.width=Math.round(GW*DPR);gc.height=Math.round(GH*DPR);gc.style.width=GW+"px";gc.style.height=GH+"px";',
-    '  lc.width=Math.round(GW*DPR);lc.height=Math.round(GH*DPR);lc.style.width=GW+"px";lc.style.height=GH+"px";',
-    '  gctx=ctx2d(gc);lctx=ctx2d(lc);build(GW,GH);render();',
-    '}',
-    // Focal zoom: scale by `factor` about a screen point (fx,fy in CSS px), so the
-    // world point under the fingers/cursor stays fixed — the natural, non-clunky
-    // pinch/scroll behaviour. screen = pan + Z*world, so pan is rebased each step.
+    'function deselect(){var p=document.querySelector(".node[data-sel]");if(p){p.removeAttribute("data-sel");p.style.removeProperty("anchor-name");}',
+    '  var d=document.getElementById("detail");if(d)d.hidden=true;selId=null;if(location.hash)history.replaceState(null,"",location.pathname);}',
+    'function applyCam(){var c=document.getElementById("cam");if(c)c.setAttribute("transform","translate("+px+" "+py+") scale("+Z+")");}',
     'function clampZ(z){return Math.min(MAXZ,Math.max(MINZ,z));}',
-    'function zoomAt(fx,fy,factor){var nz=clampZ(Z*factor),k=nz/Z;pan.x=fx-k*(fx-pan.x);pan.y=fy-k*(fy-pan.y);Z=nz;}',
-    // Eased glide to a target zoom/pan (used by the reset control + double-tap).
-    'function glide(tz,tx,ty){if(easeRAF)cancelAnimationFrame(easeRAF);',
-    '  (function step(){var dz=tz-Z,dx=tx-pan.x,dy=ty-pan.y;',
-    '    if(Math.abs(dz)<0.002&&Math.abs(dx)<0.4&&Math.abs(dy)<0.4){Z=tz;pan.x=tx;pan.y=ty;render();easeRAF=0;return;}',
-    '    Z+=dz*0.22;pan.x+=dx*0.22;pan.y+=dy*0.22;render();easeRAF=requestAnimationFrame(step);})();}',
-    'function resetView(){glide(1,0,0);}',
-    'function interact(){',
-    '  var el=document.getElementById("graph-wrap");if(!el)return;',
-    '  function rel(t){var r=el.getBoundingClientRect();return{x:t.clientX-r.left,y:t.clientY-r.top};}',
-    '  function cen(ts){return{x:(ts[0].clientX+ts[1].clientX)/2,y:(ts[0].clientY+ts[1].clientY)/2};}',
+    'function zoomAt(fx,fy,f){var nz=clampZ(Z*f),k=nz/Z;px=fx-k*(fx-px);py=fy-k*(fy-py);Z=nz;applyCam();}',
+    'function glide(tz,tx,ty){if(easeRAF)cancelAnimationFrame(easeRAF);(function step(){var dz=tz-Z,dx=tx-px,dy=ty-py;',
+    '  if(Math.abs(dz)<0.002&&Math.abs(dx)<0.1&&Math.abs(dy)<0.1){Z=tz;px=tx;py=ty;applyCam();easeRAF=0;return;}',
+    '  Z+=dz*0.22;px+=dx*0.22;py+=dy*0.22;applyCam();easeRAF=requestAnimationFrame(step);})();}',
+    'function resetView(){glide(1,0,0);deselect();}',
+    'function interact(){var el=document.getElementById("graph-wrap");if(!el)return;',
+    '  function vb(t){var r=el.getBoundingClientRect();return{x:(t.clientX-r.left)/r.width*100,y:(t.clientY-r.top)/r.height*100};}',
+    '  function cen(ts){return{clientX:(ts[0].clientX+ts[1].clientX)/2,clientY:(ts[0].clientY+ts[1].clientY)/2};}',
     '  var lastTap=0;',
-    '  el.addEventListener("touchstart",function(e){',
-    '    if(easeRAF){cancelAnimationFrame(easeRAF);easeRAF=0;}',
-    '    if(e.touches.length===1){LT=rel(e.touches[0]);PINCH=false;',
-    '      var now=performance.now();if(now-lastTap<300){resetView();lastTap=0;}else lastTap=now;}',
-    '    else if(e.touches.length===2){PINCH=true;LD=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);LC=rel({clientX:cen(e.touches).x,clientY:cen(e.touches).y});}',
-    '  },{passive:true});',
-    '  el.addEventListener("touchmove",function(e){',
-    '    if(e.touches.length===1&&LT&&!PINCH){var p=rel(e.touches[0]);pan.x+=p.x-LT.x;pan.y+=p.y-LT.y;LT=p;schedule();}',
-    '    else if(e.touches.length===2&&LD){',
-    '      var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);',
-    '      var c=rel({clientX:cen(e.touches).x,clientY:cen(e.touches).y});',
-    '      if(LC){pan.x+=c.x-LC.x;pan.y+=c.y-LC.y;}',           // two-finger drag pans
-    '      zoomAt(c.x,c.y,d/LD);LD=d;LC=c;schedule();',          // pinch zooms toward fingers
-    '    }',
-    '  },{passive:true});',
-    '  el.addEventListener("touchend",function(e){if(e.touches.length===0){LT=null;}LD=null;LC=null;if(e.touches.length<2)PINCH=false;},{passive:true});',
-    // Trackpad pinch + Ctrl/Cmd-wheel + mouse wheel → zoom at the cursor.
-    '  el.addEventListener("wheel",function(e){e.preventDefault();if(easeRAF){cancelAnimationFrame(easeRAF);easeRAF=0;}',
-    '    var p=rel(e);zoomAt(p.x,p.y,Math.exp(-e.deltaY*0.0016));schedule();},{passive:false});',
-    '  el.addEventListener("dblclick",function(e){e.preventDefault();var p=rel(e);',
-    '    glide(clampZ(Z*1.8),p.x-1.8*(p.x-pan.x),p.y-1.8*(p.y-pan.y));});',
-    '  el.addEventListener("click",function(e){',
-    '    if(PINCH)return;var r=el.getBoundingClientRect(),mx=((e.clientX-r.left)-pan.x)/Z,my=((e.clientY-r.top)-pan.y)/Z;',
-    '    var hit=null,bd=16;for(var i=0;i<nodes.length;i++){var g=nodes[i].g;if(!g||!g.mid)continue;',
-    '      var dd=Math.hypot(nodes[i].x-mx,nodes[i].y-my);if(dd<bd){bd=dd;hit=g;}}',
-    '    if(hit){var nav=document.querySelector(\'nav a[data-t="matches"]\');showTab("matches",nav);',
-    '      setTimeout(function(){var c=document.getElementById("card-"+hit.mid);if(c)c.scrollIntoView({behavior:"smooth",block:"center"});},60);}',
-    '  });',
-    // Zoom controls (also drive desktop / accessibility).
-    '  function ctr(){return{x:GW/2,y:GH/2};}',
-    '  document.querySelectorAll("[data-z]").forEach(function(b){b.addEventListener("click",function(ev){',
-    '    ev.stopPropagation();var c=ctr();',
-    '    if(b.dataset.z==="in")zoomAt(c.x,c.y,1.4);else if(b.dataset.z==="out")zoomAt(c.x,c.y,1/1.4);else{resetView();return;}schedule();',
-    '  });});',
-    '  window.addEventListener("resize",function(){clearTimeout(window._r);window._r=setTimeout(function(){resize();startBlink();},80);});',
+    '  el.addEventListener("touchstart",function(e){if(easeRAF){cancelAnimationFrame(easeRAF);easeRAF=0;}',
+    '    if(e.touches.length===1){LT=vb(e.touches[0]);PINCH=false;var now=performance.now();if(now-lastTap<300){resetView();lastTap=0;}else lastTap=now;}',
+    '    else if(e.touches.length===2){PINCH=true;LD=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);LC=vb(cen(e.touches));}},{passive:true});',
+    '  el.addEventListener("touchmove",function(e){if(e.touches.length===1&&LT&&!PINCH){var p=vb(e.touches[0]);px+=p.x-LT.x;py+=p.y-LT.y;LT=p;applyCam();}',
+    '    else if(e.touches.length===2&&LD){var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);var c=vb(cen(e.touches));',
+    '      if(LC){px+=c.x-LC.x;py+=c.y-LC.y;}zoomAt(c.x,c.y,d/LD);LD=d;LC=c;}},{passive:true});',
+    '  el.addEventListener("touchend",function(e){if(!e.touches.length)LT=null;LD=null;LC=null;if(e.touches.length<2)PINCH=false;},{passive:true});',
+    '  el.addEventListener("wheel",function(e){e.preventDefault();if(easeRAF){cancelAnimationFrame(easeRAF);easeRAF=0;}var p=vb(e);zoomAt(p.x,p.y,Math.exp(-e.deltaY*0.0016));},{passive:false});',
+    '  el.addEventListener("dblclick",function(e){e.preventDefault();var p=vb(e);glide(clampZ(Z*1.8),p.x-1.8*(p.x-px),p.y-1.8*(p.y-py));});',
+    '  var svg=document.getElementById("svg");if(svg)svg.addEventListener("click",function(e){var t=e.target;if(t===svg||t.id==="cam"||(t.getAttribute&&(""+t.getAttribute("class")).indexOf("ring")>=0))deselect();});',
+    '  document.querySelectorAll("[data-z]").forEach(function(b){b.addEventListener("click",function(ev){ev.stopPropagation();',
+    '    if(b.dataset.z==="in")zoomAt(50,50,1.4);else if(b.dataset.z==="out")zoomAt(50,50,1/1.4);else resetView();});});',
     '}',
     'interact();loadGraph();',
   ].join('\n');
@@ -648,12 +629,19 @@ ${sharedCss()}
       <span class=sl>round of 32</span>
       <span class="sl sl-m" style="margin-left:auto">${done} done${live ? ' · ' + live + ' live' : ''} · pinch · scroll · 2× tap</span>
     </div>
-    <div id=graph-wrap><canvas id=gcanvas></canvas><canvas id=lcanvas></canvas>
+    <div id=graph-wrap>
+      <svg id=svg viewBox="0 0 100 100" role=group aria-label="World Cup 2026 round of 32 radial bracket" preserveAspectRatio="xMidYMid meet">
+        <g id=cam>
+          <circle class=ring cx=50 cy=50 r=8></circle><circle class=ring cx=50 cy=50 r=16></circle><circle class=ring cx=50 cy=50 r=24></circle><circle class=ring cx=50 cy=50 r=32></circle><circle class="ring out" cx=50 cy=50 r=40></circle>
+          <g id=g-links></g><g id=g-nodes></g>
+        </g>
+      </svg>
       <div class=zc>
         <button data-z=in aria-label="zoom in">+</button>
         <button data-z=out aria-label="zoom out">−</button>
         <button data-z=reset aria-label="reset view">⤢</button>
       </div>
+      <dialog id=detail aria-label="match detail" hidden></dialog>
     </div>
     <div class=legend>
       <span class=leg><i style="background:#51c4ff"></i>upcoming</span>
@@ -661,6 +649,7 @@ ${sharedCss()}
       <span class=leg><i style="background:#f47067"></i>live</span>
       <span class=leg><i style="background:#3a3a3a"></i>eliminated</span>
     </div>
+    <ul class=sr id=srlist aria-label="all matches"></ul>
   </div>
 </section>
 
