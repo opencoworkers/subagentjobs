@@ -321,8 +321,12 @@ extension HeartbeatSnapshot {
     /// `tokens` is the cumulative session total since app start; `BuddyState.tokensToday`
     /// supplies the daily counter.
     public static func from(_ state: BuddyState, tokens: UInt64? = nil) -> HeartbeatSnapshot {
+        // NOTE: previously dropped `role` here even when `state.prompt.role` was
+        // set, so the physical device never learned which coworker raised the
+        // gate. `WirePermissionPrompt` always carried a `role` field — it just
+        // wasn't being populated from app state.
         let prompt = state.prompt.map {
-            WirePermissionPrompt(id: $0.id, tool: $0.tool, hint: $0.hint)
+            WirePermissionPrompt(id: $0.id, tool: $0.tool, hint: $0.hint, role: $0.role)
         }
         return HeartbeatSnapshot(
             total: UInt32(state.sessionsTotal),

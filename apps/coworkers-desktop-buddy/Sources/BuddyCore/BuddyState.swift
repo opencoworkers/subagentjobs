@@ -34,14 +34,19 @@ public struct PendingTool: Codable, Sendable {
     public let requestId: String
     public let tool: String
     public let hint: String
+    /// Which coworker raised this gate (e.g. "design", "engineering"). Absent for
+    /// plain session permission prompts. Mirrors `gate-<id>.json`'s `role` field and
+    /// `WirePermissionPrompt.role` on the wire protocol.
+    public let role: String?
 
     // Explicit public init required: Swift's synthesized memberwise init is
     // `internal` even when all properties are `public`, so plain `import BuddyCore`
     // in tests (without @testable) cannot call it.
-    public init(requestId: String, tool: String, hint: String) {
+    public init(requestId: String, tool: String, hint: String, role: String? = nil) {
         self.requestId = requestId
         self.tool = tool
         self.hint = hint
+        self.role = role
     }
 }
 
@@ -87,6 +92,15 @@ public struct PermissionPrompt: Codable, Sendable {
     public let id: String
     public let tool: String
     public let hint: String
+    /// Which coworker raised this gate, if any. See `PendingTool.role`.
+    public let role: String?
+
+    public init(id: String, tool: String, hint: String, role: String? = nil) {
+        self.id = id
+        self.tool = tool
+        self.hint = hint
+        self.role = role
+    }
 }
 
 // MARK: - Virtual stats (mirrors Stats in stats.h, but in-memory only on Linux)
@@ -109,7 +123,7 @@ extension BuddyState {
         let running = UInt8(sessions.filter { $0.status == .running }.count)
         let waiting = UInt8(sessions.filter { $0.status == .waiting }.count)
         let prompt  = sessions.compactMap(\.pendingTool).first.map {
-            PermissionPrompt(id: $0.requestId, tool: $0.tool, hint: $0.hint)
+            PermissionPrompt(id: $0.requestId, tool: $0.tool, hint: $0.hint, role: $0.role)
         }
         let msg: String
         if waiting > 0 {
@@ -121,8 +135,13 @@ extension BuddyState {
         } else {
             msg = "No Claude connected"
         }
-        let lines = sessions.prefix(8).map { s in
-            "[\(s.status.rawValue)] \(s.title.prefix(80))"
+        // Per-coworker lane prefix: "role:: " before the title when a session's
+        // pending tool was raised by a named coworker (design, engineering, …),
+        // so the UI can split entries into per-coworker status lines. Sessions
+        // with no role behave exactly as before (no prefix).
+        let lines = sessions.prefix(8).map { s -> String in
+            let rolePrefix = s.pendingTool?.role.map { "\($0):: " } ?? ""
+            return "[\(s.status.rawValue)] \(rolePrefix)\(s.title.prefix(80))"
         }
         return BuddyState(
             connected: !sessions.isEmpty,
