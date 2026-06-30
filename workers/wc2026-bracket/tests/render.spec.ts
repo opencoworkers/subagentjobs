@@ -310,6 +310,31 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
     expect(geo.bottomOff).toBeLessThanOrEqual(2); // sat on the panel's bottom edge
   });
 
+  test('sticky live/next rail surfaces live + upcoming matches and deep-selects on tap', async ({ page }) => {
+    await page.goto('/');
+    const rail = page.locator('.rail');
+    await expect(rail).toBeVisible();
+    expect(await page.evaluate(() => getComputedStyle(document.querySelector('.rail')!).position)).toBe('sticky');
+
+    // 2 live chips (M07, M08) + up to 6 upcoming chips.
+    expect(await page.locator('.chip.live').count()).toBe(2);
+    expect(await page.locator('.chip').count()).toBeGreaterThanOrEqual(2 + 6);
+
+    // Tapping a live chip switches to the bracket tab and selects that match.
+    await page.locator('.chip[data-go="M07"]').click();
+    await expect(page.locator('#detail')).toBeVisible();
+    expect(await page.evaluate(() => document.querySelector('.node[data-sel]')?.getAttribute('data-id'))).toBe('M07');
+  });
+
+  test('round labels (R32 → Final) annotate the rings', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => document.querySelectorAll('.node[data-id]').length > 0);
+    const labels = await page.$$eval('.rlab', (els) => els.map((e) => e.textContent));
+    expect(labels).toEqual(['R32', 'R16', 'QF', 'SF', 'FINAL']);
+    // Decorative orientation cue — grouped under aria-hidden so they aren't announced.
+    expect(await page.evaluate(() => document.querySelector('.rlabels')?.getAttribute('aria-hidden'))).toBe('true');
+  });
+
   test('tab switch uses the View Transitions API without errors', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));

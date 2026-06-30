@@ -377,6 +377,23 @@ nav a{padding:8px 14px;font-size:11px;color:var(--mut);text-decoration:none;whit
   border-bottom:2px solid transparent;min-height:36px;display:flex;align-items:center;flex-shrink:0;
   background:none;border-left:none;border-right:none;border-top:none;font-family:inherit;cursor:pointer}
 nav a.active,nav a:hover{color:var(--cyan);border-bottom-color:var(--cyan)}
+/* sticky "live now / up next" rail */
+.rail{display:flex;align-items:center;gap:8px;overflow-x:auto;white-space:nowrap;scrollbar-width:none;
+  padding:7px 12px;border-bottom:1px solid var(--line);background:rgba(10,10,10,.94);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  position:sticky;top:calc(78px + env(safe-area-inset-top));z-index:18}
+.rail::-webkit-scrollbar{display:none}
+.rail-h{flex:none;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--mut)}
+.rail-h.live{color:var(--red)}
+.chip{flex:none;display:inline-flex;align-items:center;gap:4px;font-family:inherit;font-size:11px;
+  border:1px solid var(--line2);background:var(--panel);color:var(--txt);border-radius:999px;
+  padding:4px 9px;cursor:pointer;-webkit-tap-highlight-color:transparent;min-height:30px}
+.chip:hover,.chip:focus-visible{border-color:var(--cyan);color:var(--txt-hi);outline:none}
+.chip.live{border-color:#f4706766;border-color:rgb(from var(--red) r g b / .4);background:#160d0d}
+.chip b{font-weight:600}
+.chip .csc{font-weight:600;color:var(--cyan);margin:0 1px}
+.chip.live .csc{color:var(--red)}
+.chip .cfl{font-size:13px;line-height:1}
 main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
 .section{margin-bottom:24px}
 .sh{display:flex;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);margin-bottom:10px}
@@ -393,6 +410,9 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
 .crest{font-size:4px;text-anchor:middle;dominant-baseline:central}
 .code{font-family:ui-monospace,monospace;font-weight:400;font-size:1.5px;text-anchor:middle;dominant-baseline:central}
 .trophy{font-size:5.5px;text-anchor:middle;dominant-baseline:central}
+/* round labels on the rings (R32 → … → Final), decorative orientation cue */
+.rlab{font-family:ui-monospace,monospace;font-size:1.5px;font-weight:600;letter-spacing:.05px;
+  fill:var(--mut);text-anchor:middle;dominant-baseline:central}
 .node{cursor:pointer}
 .node .hit{fill:transparent}
 .node .dot{stroke-width:.3}
@@ -510,6 +530,24 @@ export function page(matches: ShapedMatch[]): string {
         `<span class=nm>${esc(m.away.n)}${aMk}</span>${as}</div>${prob}</div>`;
   }).join('');
 
+  // Sticky "live now / up next" rail — quick access to the matches that matter right
+  // now. Server-rendered so it's in the initial HTML; chips deep-select on the radial.
+  const liveMs = matches.filter((m) => m.status === 'in_progress');
+  const nextMs = matches.filter((m) => m.status === 'scheduled').slice(0, 6);
+  const chip = (m: ShapedMatch, isLive: boolean) => {
+    const sc = m.s ? `${m.s.h}–${m.s.a}` : 'v';
+    return `<button class="chip${isLive ? ' live' : ''}" data-go="${esc(m.id)}" ` +
+      `aria-label="${esc(m.home.n)} versus ${esc(m.away.n)}${isLive ? ', live' : ''}">` +
+      `<span class=cfl>${m.home.f}</span><b>${esc(m.home.c)}</b>` +
+      `<span class=csc>${sc}</span><b>${esc(m.away.c)}</b><span class=cfl>${m.away.f}</span></button>`;
+  };
+  const rail = (liveMs.length || nextMs.length)
+    ? `<div class=rail role=group aria-label="live and upcoming matches">` +
+        (liveMs.length ? `<span class="rail-h live">live</span>${liveMs.map((m) => chip(m, true)).join('')}` : '') +
+        (nextMs.length ? `<span class=rail-h>up next</span>${nextMs.map((m) => chip(m, false)).join('')}` : '') +
+      `</div>`
+    : '';
+
   // Client JS — array of strings, no nested template literals (workers/web style).
   // iPhone 16 Pro / Chrome optimisations:
   //  • Display-P3 + desynchronized 2D contexts (wide gamut, low latency).
@@ -543,6 +581,11 @@ export function page(matches: ShapedMatch[]): string {
     '  if(RM||!document.startViewTransition){swapTab(name,el);return;}',
     '  document.startViewTransition(function(){swapTab(name,el);});',
     '}',
+    // Rail chip → bring the radial into view and select the match.
+    'function goMatch(id){var nav=document.querySelector("nav a[data-t=bracket]");',
+    '  if(nav&&!nav.classList.contains("active"))swapTab("bracket",nav);',
+    '  var gw=document.getElementById("graph-wrap");if(gw&&gw.scrollIntoView)gw.scrollIntoView({block:"center",behavior:RM?"auto":"smooth"});',
+    '  selectMatch(id,true);}',
     'function loadGraph(){',
     '  fetch("/api/bracket").then(function(r){return r.json();}).then(function(d){',
     '    DATA=d;buildSVG();if(/^#M\\d\\d$/.test(location.hash))selectMatch(location.hash.slice(1),false);',
@@ -644,6 +687,7 @@ export function page(matches: ShapedMatch[]): string {
     '  var svg=document.getElementById("svg");if(svg)svg.addEventListener("click",function(e){var t=e.target;if(t===svg||t.id==="cam"||(t.getAttribute&&(""+t.getAttribute("class")).indexOf("ring")>=0))deselect();});',
     '  document.querySelectorAll("[data-z]").forEach(function(b){b.addEventListener("click",function(ev){ev.stopPropagation();',
     '    if(b.dataset.z==="in")zoomAt(50,50,1.4);else if(b.dataset.z==="out")zoomAt(50,50,1/1.4);else resetView();});});',
+    '  document.querySelectorAll("[data-go]").forEach(function(b){b.addEventListener("click",function(){goMatch(b.getAttribute("data-go"));});});',
     // Non-modal detail-card keyboard model. Escape is bound at the document level and
     // guarded on "card open", so it closes from anywhere on the page (the card is not a
     // native modal and the background stays interactive — a #detail-scoped handler would
@@ -682,6 +726,7 @@ ${sharedCss()}
   <a data-t=matches onclick="showTab('matches',this);return false">matches</a>
   <a href=https://coworkers.subagentknowledge.com target=_blank style="margin-left:auto">coworkers ↗</a>
 </nav>
+${rail}
 <main>
 
 <section id=tab-bracket>
@@ -694,6 +739,9 @@ ${sharedCss()}
       <svg id=svg viewBox="0 0 100 100" role=group aria-label="World Cup 2026 round of 32 radial bracket" preserveAspectRatio="xMidYMid meet">
         <g id=cam>
           <circle class=ring cx=50 cy=50 r=8></circle><circle class=ring cx=50 cy=50 r=16></circle><circle class=ring cx=50 cy=50 r=24></circle><circle class=ring cx=50 cy=50 r=32></circle><circle class="ring out" cx=50 cy=50 r=40></circle>
+          <g class=rlabels aria-hidden=true>
+            <text class=rlab x=50 y=18>R32</text><text class=rlab x=50 y=26>R16</text><text class=rlab x=50 y=34>QF</text><text class=rlab x=50 y=42>SF</text><text class=rlab x=50 y=55.6>FINAL</text>
+          </g>
           <g id=g-links></g><g id=g-nodes></g>
         </g>
       </svg>
