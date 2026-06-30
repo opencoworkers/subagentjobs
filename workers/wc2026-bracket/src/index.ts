@@ -408,11 +408,10 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
    halo ring (shape cue, survives reduced-motion); advanced/eliminated team crests
    get a ✓/✕ glyph appended to the code (see buildSVG). */
 .node .livering{stroke:var(--red);stroke-width:.35;opacity:.9}
-.code.st-elim{text-decoration:line-through;text-decoration-thickness:.3px}
 /* focus+context match detail — CSS anchor positioning + @position-try */
 #detail{display:block;position:fixed;margin:0;border:1px solid var(--line2);background:#0e0e0eee;color:var(--txt);
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:12px;padding:12px 14px;width:min(280px,86vw);z-index:6;
-  position-anchor:--sel;top:anchor(bottom);left:anchor(center);translate:-50% 8px;inset:auto;
+  position-anchor:--sel;inset:auto;top:anchor(bottom);left:anchor(center);translate:-50% 8px;
   position-try-fallbacks:flip-block,flip-inline,flip-block flip-inline}
 @supports not (anchor-name:--x){#detail{left:50%;bottom:14px;top:auto;translate:-50% 0}}
 /* Graceful degradation: anchor positioning resolves popover-vs-edge, but on a narrow
@@ -424,6 +423,9 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
     position-anchor:auto;position-try-fallbacks:none;
     border-radius:14px 14px 0 0;border-left:0;border-right:0;border-bottom:0;
     padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+  /* The full-width sheet would otherwise cover the bottom-right zoom cluster and eat its
+     taps; while it's open, float the controls to the top so they stay reachable. */
+  #graph-wrap:has(#detail:not([hidden])) .zc{top:8px;bottom:auto}
 }
 #detail[hidden]{display:none}
 #detail .dh{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.08em;color:var(--mut);text-transform:uppercase;margin-bottom:8px}
@@ -555,10 +557,10 @@ export function page(matches: ShapedMatch[]): string {
     '    LK.appendChild(svel("path",{"class":"lk",d:"M"+pb[0]+" "+pb[1]+"Q"+pm[0]+" "+pm[1]+" "+pa[0]+" "+pa[1],stroke:lcol(b.st),"stroke-width":b.k==="team"?0.5:0.7}));});',
     '  N.forEach(function(g){var p=P(g.ang,g.r);',
     '    if(g.k==="final"){var tr=svel("text",{"class":"trophy",x:50,y:50});tr.textContent="\\uD83C\\uDFC6";ND.appendChild(tr);return;}',
-    '    if(g.k==="team"){var gg=svel("g",{"class":"tm"});',
+    '    if(g.k==="team"){var gg=svel("g",{"class":"tm","aria-hidden":"true"});',
     '      var fl=svel("text",{"class":"crest",x:p[0],y:p[1]});fl.textContent=g.flag;gg.appendChild(fl);',
     '      var d=Math.hypot(p[0]-50,p[1]-50)||1,ux=(p[0]-50)/d,uy=(p[1]-50)/d;',
-    '      var cd=svel("text",{"class":"code st-"+g.st,x:p[0]+ux*3.4,y:p[1]+uy*3.4,fill:g.st==="adv"?"#7bd88f":g.st==="elim"?"#777":"#8a8a8a"});cd.textContent=g.code+(g.st==="adv"?" \\u2713":g.st==="elim"?" \\u2715":"");gg.appendChild(cd);',
+    '      var cd=svel("text",{"class":"code st-"+g.st,x:p[0]+ux*3.4,y:p[1]+uy*3.4,fill:g.st==="adv"?"#7bd88f":g.st==="elim"?"#8c8c8c":"#8a8a8a"});cd.textContent=g.code+(g.st==="adv"?" \\u2713":g.st==="elim"?" \\u2715":"");gg.appendChild(cd);',
     '      ND.appendChild(gg);return;}',
     '    var rad=g.k==="match"?(g.live?2.2:g.st==="adv"?2:1.6):g.k==="r16"?0.9:0.7;',
     '    var node=svel("g",{"class":"node"+(g.live?" live":"")});',

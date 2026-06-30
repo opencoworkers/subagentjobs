@@ -262,6 +262,28 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
 
     // Match cards mark the winner with ✓ (6 finals → 6 winners), color-independently.
     expect(await page.locator('.wmark').count()).toBe(6);
+
+    // The crest glyphs are a purely visual cue — the crest layer is aria-hidden so a
+    // screen reader doesn't read "check mark"/"x" per team (status is on the node labels).
+    const crestsHidden = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.tm')).every((g) => g.getAttribute('aria-hidden') === 'true'),
+    );
+    expect(crestsHidden).toBe(true);
+  });
+
+  test('zoom controls stay tappable while the bottom sheet is open (not occluded)', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(
+      () => typeof (window as any).zoomAt === 'function' && document.querySelectorAll('.node[data-id]').length > 0,
+    );
+    // Open a tall card (a live match) — the worst case for the sheet covering the controls.
+    await page.locator('.node[data-id="M07"]').dispatchEvent('click');
+    await expect(page.locator('#detail')).toBeVisible();
+    const z0 = await page.evaluate(() => (window as any).Z);
+    // A REAL actionability-checked click (not .focus()/dispatchEvent) must reach the button;
+    // if the sheet covered it, Playwright would time out on pointer interception.
+    await page.locator('.zc button[data-z="in"]').click({ timeout: 4000 });
+    expect(await page.evaluate(() => (window as any).Z)).toBeGreaterThan(z0);
   });
 
   test('detail card degrades to a full-width bottom sheet on a ≤420px phone', async ({ page }) => {
