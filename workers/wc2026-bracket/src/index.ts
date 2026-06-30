@@ -152,6 +152,10 @@ async function bracketPayload(env: Env) {
   return { matches, r16, meta: { updated: upd?.u ?? null, ...META } };
 }
 
+const countBy = (ms: ShapedMatch[], st: string) => ms.filter((m) => m.status === st).length;
+const finalLine = (m: ShapedMatch) =>
+  `${m.home.c}${m.s ? ` ${m.s.h}-${m.s.a}` : ''} vs ${m.away.c}${m.w ? ` W:${m.w}` : ''}${m.note ? ` (${m.note})` : ''}`;
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const u = new URL(req.url);
@@ -168,23 +172,17 @@ export default {
 
     // ── /api/status ───────────────────────────────────────────────────────────
     if (u.pathname === '/api/status') {
-      const matches = await loadMatches(env);
-      const upd = await env.DB.prepare(`SELECT MAX(updated_at) AS u FROM fact_match`).first<{ u: string | null }>();
-      const by = (st: string) => matches.filter((m) => m.status === st);
+      const [matches, upd] = await Promise.all([
+        loadMatches(env),
+        env.DB.prepare(`SELECT MAX(updated_at) AS u FROM fact_match`).first<{ u: string | null }>(),
+      ]);
       return Response.json({
         updated: upd?.u ?? null,
-        done: by('final').length,
-        live: by('in_progress').length,
-        upcoming: by('scheduled').length,
+        done: countBy(matches, 'final'),
+        live: countBy(matches, 'in_progress'),
+        upcoming: countBy(matches, 'scheduled'),
         total: matches.length,
-        results: by('final').map(
-          (m) =>
-            m.home.c +
-            (m.s ? ` ${m.s.h}-${m.s.a}` : '') +
-            ` vs ${m.away.c}` +
-            (m.w ? ` W:${m.w}` : '') +
-            (m.note ? ` (${m.note})` : '')
-        ),
+        results: matches.filter((m) => m.status === 'final').map(finalLine),
       }, { headers: cors });
     }
 
@@ -532,7 +530,10 @@ export function page(matches: ShapedMatch[]): string {
     '  });',
     '  x.restore();',
     '}',
-    'function render(blink){if(!DATA||!GW)return;build(GW,GH);draw(GW,GH,blink==null?blinkV():blink);labels(GW,GH);}',
+    // Node layout depends only on DATA + canvas size, so build() runs in resize()
+    // /loadGraph — not per frame. render() (called on every blink/pan/zoom frame)
+    // just redraws.
+    'function render(blink){if(!DATA||!GW)return;draw(GW,GH,blink==null?blinkV():blink);labels(GW,GH);}',
     // coalesce on-demand draws into a single rAF
     'function schedule(){if(pending)return;pending=true;requestAnimationFrame(function(){pending=false;render();});}',
     // continuous loop ONLY while a match is live; self-terminates otherwise
@@ -544,7 +545,7 @@ export function page(matches: ShapedMatch[]): string {
     '  var gc=document.getElementById("gcanvas"),lc=document.getElementById("lcanvas");',
     '  gc.width=Math.round(GW*DPR);gc.height=Math.round(GH*DPR);gc.style.width=GW+"px";gc.style.height=GH+"px";',
     '  lc.width=Math.round(GW*DPR);lc.height=Math.round(GH*DPR);lc.style.width=GW+"px";lc.style.height=GH+"px";',
-    '  gctx=ctx2d(gc);lctx=ctx2d(lc);render();',
+    '  gctx=ctx2d(gc);lctx=ctx2d(lc);build(GW,GH);render();',
     '}',
     'function interact(){',
     '  var el=document.getElementById("graph-wrap");if(!el)return;',
