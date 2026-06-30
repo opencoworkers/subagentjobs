@@ -138,7 +138,7 @@ VALUES
 
   ('github:microsoft',            'github', 'microsoft',            'Microsoft',
    'Open source projects and samples from Microsoft.',
-   'https://github.com/microsoft', NULL),
+   'https://github.com/microsoft', DEFAULT),
 
   ('npm:modelcontextprotocol',    'npm',    'modelcontextprotocol', '@modelcontextprotocol',
    'Official @modelcontextprotocol npm organization — 50 packages.',
@@ -281,17 +281,17 @@ VALUES
   ('github:microsoft/pg_durable', 'github:microsoft', 'microsoft/pg_durable', 'pg_durable',
    'Durable execution extension for PostgreSQL built with pgrx.',
    'https://github.com/microsoft/pg_durable', 'Rust', 'MIT',
-   NULL, NULL, NULL, NULL, FALSE, NULL, ARRAY['postgres','durable-execution','pgrx','rust']),
+   DEFAULT, DEFAULT, DEFAULT, DEFAULT, FALSE, NULL, ARRAY['postgres','durable-execution','pgrx','rust']),
 
   ('github:microsoft/duroxide', 'github:microsoft', 'microsoft/duroxide', 'duroxide',
    'Durable execution orchestration runtime.',
    'https://github.com/microsoft/duroxide', 'Rust', 'MIT',
-   NULL, NULL, NULL, NULL, FALSE, NULL, '{}'),
+   DEFAULT, DEFAULT, DEFAULT, DEFAULT, FALSE, NULL, '{}'),
 
   ('github:microsoft/duroxide-pg', 'github:microsoft', 'microsoft/duroxide-pg', 'duroxide-pg',
    'PostgreSQL state provider for duroxide.',
    'https://github.com/microsoft/duroxide-pg', 'Rust', 'MIT',
-   NULL, NULL, NULL, NULL, FALSE, NULL, '{}')
+   DEFAULT, DEFAULT, DEFAULT, DEFAULT, FALSE, NULL, '{}')
 
 ON CONFLICT (repo_key) DO UPDATE SET
   stars          = EXCLUDED.stars,

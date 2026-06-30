@@ -6,33 +6,29 @@ tasks:
     content: "Apply 006_ecosystem_catalog.sql to Postgres"
     priority: high
     status: pending
-    kind:
-      migration:
-        file: crates/durable-store/migrations/postgres/006_ecosystem_catalog.sql
+    kind: !migration
+      file: crates/durable-store/migrations/postgres/006_ecosystem_catalog.sql
 
   - id: task-migration-007
     content: "Apply 007_doc_pages.sql to Postgres"
     priority: high
     status: pending
-    kind:
-      migration:
-        file: crates/durable-store/migrations/postgres/007_doc_pages.sql
+    kind: !migration
+      file: crates/durable-store/migrations/postgres/007_doc_pages.sql
 
   - id: task-first-crawl
     content: "Run make crawl-docs (requires DATABASE_URL + Redis)"
     priority: high
     status: pending
-    kind:
-      shell_command:
-        command: make crawl-docs
+    kind: !shell_command
+      command: make crawl-docs
 
   - id: task-index-docs
     content: "Run make index-docs after first crawl"
     priority: medium
     status: pending
-    kind:
-      shell_command:
-        command: make index-docs
+    kind: !shell_command
+      command: make index-docs
 
   - id: task-a2a-executor
     content: "Implement AgentExecutor trait in crates/a2a-bridge once a2a-server-lf API stabilises"
@@ -44,14 +40,12 @@ tasks:
     content: "Run indexer over vendor repos: cargo run -p indexer -- --all"
     priority: medium
     status: pending
-    kind:
-      shell_command:
-        command: cargo run -p indexer -- --all
+    kind: !shell_command
+      command: cargo run -p indexer -- --all
 
   - id: task-cowork-profile
     content: "Switch Claude Desktop to cowork profile: bash profiles/switch-profile.sh cowork"
     priority: low
     status: pending
-    kind:
-      shell_command:
-        command: bash profiles/switch-profile.sh cowork
+    kind: !shell_command
+      command: bash profiles/switch-profile.sh cowork
