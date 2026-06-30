@@ -9,7 +9,7 @@ rustflags = ["-Ctarget-feature=+crt-static"]
 [build]
 # jobs defaults to num_cpus
 incremental = true
-rustc-wrapper = "sccache"
+# To use sccache locally: export RUSTC_WRAPPER=sccache
 [registries.crates-io]
 protocol = "sparse"
 [net]
