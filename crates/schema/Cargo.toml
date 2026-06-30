@@ -2,6 +2,12 @@
 name = "schema"
 edition.workspace = true
 rust-version.workspace = true
+[features]
+# Opt-in `sqlx::FromRow` derives on vendor row structs (see src/vendor.rs).
+# Not wired to a sqlx dependency yet — declared so `cfg(feature = "sqlx")`
+# is a known cfg under `-D warnings` (check-cfg).
+sqlx = []
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
