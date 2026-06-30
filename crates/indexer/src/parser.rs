@@ -61,6 +61,8 @@ pub struct ParseResult {
     pub imports:     Vec<String>,
     pub exports:     Vec<String>,
     pub doc_summary: Option<String>,
+    /// Retained for the AST record even though no consumer reads it yet.
+    #[allow(dead_code)]
     pub line_count:  u32,
 }
 

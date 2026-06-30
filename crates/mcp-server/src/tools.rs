@@ -4,6 +4,8 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SearchJobsInput {
     pub query: Option<String>,
+    /// Part of the tool input schema; not yet consumed by the query builder.
+    #[allow(dead_code)]
     pub skills: Option<Vec<String>>,
     pub company: Option<String>,
     pub limit: Option<u32>,

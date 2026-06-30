@@ -5,9 +5,7 @@
 //!         Enriching → EnrichFailed
 //! Transitions are atomic via SELECT FOR UPDATE SKIP LOCKED.
 
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 mod fsm;

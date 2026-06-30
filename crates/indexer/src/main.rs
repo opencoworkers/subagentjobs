@@ -101,7 +101,7 @@ async fn main() -> Result<()> {
 
     for vendor_config in vendors_to_index {
         let key = vendor_config.vendor_key();
-        let repo_root = cli.root.join(&vendor_config.local_path());
+        let repo_root = cli.root.join(vendor_config.local_path());
 
         if !repo_root.exists() {
             warn!("{key}: not cloned yet — run ./scripts/setup-vendors.sh");

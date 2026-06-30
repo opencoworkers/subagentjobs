@@ -1,12 +1,12 @@
-/// Typed sub-agent definitions for subagentjobs.
-///
-/// Each agent targets a specific operational concern. Adding a new agent:
-///   1. Add an `AgentConfig { ... }` entry to `all_agents()` below.
-///   2. Run `cargo run -p agent-gen` to regenerate `.claude/agents/*.yaml`.
-///   3. Commit both the source change and the generated YAML.
-///
-/// Naming convention: `{verb}-{noun}` in lowercase with hyphens.
-/// Description convention: start with "Delegate when the user wants to…"
+//! Typed sub-agent definitions for subagentjobs.
+//!
+//! Each agent targets a specific operational concern. Adding a new agent:
+//!   1. Add an `AgentConfig { ... }` entry to `all_agents()` below.
+//!   2. Run `cargo run -p agent-gen` to regenerate `.claude/agents/*.yaml`.
+//!   3. Commit both the source change and the generated YAML.
+//!
+//! Naming convention: `{verb}-{noun}` in lowercase with hyphens.
+//! Description convention: start with "Delegate when the user wants to…"
 
 use schema::agent::{AgentConfig, AgentModel, AgentTool};
 
