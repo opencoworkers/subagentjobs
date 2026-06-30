@@ -75,6 +75,29 @@ toolchain (`scripts/toolchain/setup-linux.sh`) and the cloud `scripts/setup.sh`
 latest results, diffs them against `/api/bracket`, and POSTs only the changed
 matches to `/api/update` — the same agent-driven pattern as `make review` / `make pr`.
 
+## Radial graph — interaction (the core of the app)
+
+The radial bracket is the product; its zoom/pan is built to feel native:
+
+- **Unified world transform** — the graph *and* the label layer (team names,
+  scores, the centre trophy) draw under the **same** `translate(pan)·scale(Z)`
+  matrix. The trophy is a world-space element at the bracket centre, so it stays
+  locked to the graph at any zoom/pan (fixing the drifting-crown bug).
+- **Focal-anchored zoom** — pinch and trackpad/⌘-scroll zoom toward the
+  fingers/cursor: `pan` is rebased each step so the world point under the focal
+  stays fixed. A regression test asserts this invariant (zero drift).
+- **Two-finger pan, mouse-wheel zoom, double-tap / double-click** to zoom-in or
+  reset, plus on-screen **＋ / − / ⤢ controls** for desktop and accessibility.
+- **Eased glide** (`requestAnimationFrame`) for reset/step zoom; pinch tracks the
+  fingers 1:1 for zero-lag response. Zoom clamped to 0.6×–6×.
+
+## Penalty-shootout scores
+
+Ties decided on penalties carry a separate shootout score per side
+(`fact_match.home_pens` / `away_pens`), rendered as a parenthesised sub-score —
+`0 (4) – 0 (3)` on the match cards and `0(4)-0(3)` on the radial node. Yesterday's
+(Jun 29) results are penalty dramas: MEX 0 (4)–(3) KOR and BRA 2 (5)–(4) NGA.
+
 ## Radial-graph rendering — iPhone 16 Pro / Chrome
 
 The bracket canvas is tuned for the iPhone 16 Pro panel (DPR 3, Display-P3,

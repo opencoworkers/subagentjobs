@@ -40,6 +40,8 @@ interface MatchDelta {
   status?: string;
   home_score?: number | null;
   away_score?: number | null;
+  home_pens?: number | null; // penalty-shootout goals (winner/loser on a tie)
+  away_pens?: number | null;
   winner?: string | null;
   winner_code?: string | null;
   note?: string | null;
@@ -57,6 +59,8 @@ async function applyUpdates(env: Env, deltas: MatchDelta[]): Promise<{ updated: 
             SET status      = COALESCE(?, status),
                 home_score  = ?,
                 away_score  = ?,
+                home_pens   = ?,
+                away_pens   = ?,
                 winner_code = ?,
                 note        = ?,
                 updated_at  = ?
@@ -65,6 +69,8 @@ async function applyUpdates(env: Env, deltas: MatchDelta[]): Promise<{ updated: 
         m.status ?? null,
         m.home_score ?? null,
         m.away_score ?? null,
+        m.home_pens ?? null,
+        m.away_pens ?? null,
         m.winner ?? m.winner_code ?? null,
         m.note ?? null,
         now,
@@ -94,6 +100,7 @@ interface ShapedMatch {
   home: Side;
   away: Side;
   s: { h: number; a: number } | null;
+  pk: { h: number; a: number } | null; // penalty-shootout score when a tie went to pens
   w: string | null;
   p: { h: number } | null;
   note: string | null;
@@ -105,7 +112,7 @@ async function loadMatches(env: Env): Promise<ShapedMatch[]> {
     `SELECT m.match_id, m.seq, m.status, m.match_date, m.venue,
             m.home_code, ht.name AS home_name, ht.flag AS home_flag,
             m.away_code, at.name AS away_name, at.flag AS away_flag,
-            m.home_score, m.away_score, m.winner_code, m.prob_home, m.note
+            m.home_score, m.away_score, m.home_pens, m.away_pens, m.winner_code, m.prob_home, m.note
        FROM fact_match m
        JOIN dim_team ht ON m.home_code = ht.team_code
        JOIN dim_team at ON m.away_code = at.team_code
@@ -121,6 +128,7 @@ async function loadMatches(env: Env): Promise<ShapedMatch[]> {
     home: { c: r.home_code, n: r.home_name, f: r.home_flag },
     away: { c: r.away_code, n: r.away_name, f: r.away_flag },
     s: r.home_score != null && r.away_score != null ? { h: r.home_score, a: r.away_score } : null,
+    pk: r.home_pens != null && r.away_pens != null ? { h: r.home_pens, a: r.away_pens } : null,
     w: r.winner_code ?? null,
     p: r.prob_home != null ? { h: r.prob_home } : null,
     note: r.note ?? null,
@@ -154,7 +162,7 @@ async function bracketPayload(env: Env) {
 
 const countBy = (ms: ShapedMatch[], st: string) => ms.filter((m) => m.status === st).length;
 const finalLine = (m: ShapedMatch) =>
-  `${m.home.c}${m.s ? ` ${m.s.h}-${m.s.a}` : ''} vs ${m.away.c}${m.w ? ` W:${m.w}` : ''}${m.note ? ` (${m.note})` : ''}`;
+  `${m.home.c}${m.s ? ` ${m.s.h}-${m.s.a}` : ''}${m.pk ? ` pens ${m.pk.h}-${m.pk.a}` : ''} vs ${m.away.c}${m.w ? ` W:${m.w}` : ''}${m.note ? ` (${m.note})` : ''}`;
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
@@ -375,6 +383,12 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
   background:var(--panel);overflow:hidden;contain:layout paint}
 #gcanvas,#lcanvas{position:absolute;top:0;left:0;width:100%;height:100%}
 #gcanvas{touch-action:none}#lcanvas{pointer-events:none}
+.zc{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:6px;z-index:2}
+.zc button{width:34px;height:34px;border:1px solid var(--line2);background:rgba(10,10,10,.72);
+  color:var(--cyan);font-size:17px;line-height:1;font-family:var(--mono,inherit);border-radius:8px;cursor:pointer;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;
+  -webkit-tap-highlight-color:transparent;transition:border-color .15s,color .15s}
+.zc button:hover,.zc button:active{border-color:var(--cyan);color:var(--txt-hi)}
 .legend{display:flex;flex-wrap:wrap;gap:8px 14px;padding:10px 2px;font-size:9px;
   letter-spacing:.5px;color:var(--mut);text-transform:uppercase}
 .leg{display:flex;align-items:center;gap:5px}.leg i{width:7px;height:7px;border-radius:50%;display:inline-block}
@@ -390,6 +404,7 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
 .mteam .nm{flex:1;color:var(--txt)}
 .mteam .sc{font-size:14px;font-weight:600;color:var(--cyan);min-width:16px;text-align:right}
 .mteam .sc.dim{font-size:10px;color:var(--dim)}
+.mteam .sc .pk{font-size:10px;font-weight:400;color:var(--mut);margin-left:1px;vertical-align:1px}
 .mteam.won .nm{color:var(--cyan);font-weight:600}
 .mteam.lost .nm{color:var(--mut)}
 .msep{height:1px;background:var(--line);margin:2px 0}
@@ -415,8 +430,10 @@ export function page(matches: ShapedMatch[]): string {
     const lv = m.status === 'in_progress';
     const hWon = fin && m.w === m.home.c, hLost = fin && !hWon && m.w != null;
     const aWon = fin && m.w === m.away.c, aLost = fin && !aWon && m.w != null;
-    const hs = m.s ? `<span class=sc>${m.s.h}</span>` : '<span class="sc dim">—</span>';
-    const as = m.s ? `<span class=sc>${m.s.a}</span>` : '<span class="sc dim">—</span>';
+    const pkh = m.pk ? `<span class=pk>(${m.pk.h})</span>` : '';
+    const pka = m.pk ? `<span class=pk>(${m.pk.a})</span>` : '';
+    const hs = m.s ? `<span class=sc>${m.s.h}${pkh}</span>` : '<span class="sc dim">—</span>';
+    const as = m.s ? `<span class=sc>${m.s.a}${pka}</span>` : '<span class="sc dim">—</span>';
     const pip = fin ? '<span class="pip ft">FT</span>' : lv ? '<span class="pip lv">live</span>' : '';
     const note = m.note ? `<span class=note>${esc(m.note)}</span>` : '';
     const prob = !fin && !lv && m.p
@@ -444,7 +461,7 @@ export function page(matches: ShapedMatch[]): string {
   //  • prefers-reduced-motion disables the blink loop entirely.
   const js = [
     'var DATA=null,nodes=[],pan={x:0,y:0};',
-    'var Z=1,LT=null,LD=null,PINCH=false;',
+    'var Z=1,LT=null,LD=null,LC=null,PINCH=false,MINZ=0.6,MAXZ=6,easeRAF=0;',
     'var GW=0,GH=0,DPR=1,gctx=null,lctx=null,pending=false,blinkRAF=0;',
     'var RM=(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)||false;',
     'function ctx2d(c){try{return c.getContext("2d",{desynchronized:true,colorSpace:"display-p3"});}',
@@ -506,15 +523,19 @@ export function page(matches: ShapedMatch[]): string {
     '  });',
     '  gctx.restore();',
     '}',
+    // Labels share the EXACT world transform of draw() — translate(pan).scale(Z)
+    // around the canvas — so the trophy at the bracket centre and every label /
+    // score stay locked to the graph at any zoom or pan (no more drifting crown).
     'function labels(W,H){',
-    '  if(!lctx)return;var x=lctx;x.clearRect(0,0,W*DPR,H*DPR);',
-    '  x.save();x.scale(DPR,DPR);var cx=W/2,cy=H/2,R=Math.min(W,H)*0.38;',
+    '  if(!lctx)return;var x=lctx;x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,W*DPR,H*DPR);',
+    '  x.setTransform(DPR,0,0,DPR,0,0);x.translate(pan.x,pan.y);x.scale(Z,Z);',
+    '  var cx=W/2,cy=H/2,R=Math.min(W,H)*0.38;',
     '  x.textAlign="center";x.textBaseline="middle";',
-    '  x.font="18px serif";x.fillText("\\uD83C\\uDFC6",cx+pan.x,cy+pan.y-4);',
+    '  x.font="18px serif";x.fillText("\\uD83C\\uDFC6",cx,cy-4);',
     '  x.font="300 6px ui-monospace,monospace";x.fillStyle="#3a3a3a";',
-    '  x.fillText("FINAL \\u00b7 JUL 19",cx+pan.x,cy+pan.y+11);',
+    '  x.fillText("FINAL \\u00b7 JUL 19",cx,cy+11);',
     '  nodes.forEach(function(nd){',
-    '    var m=nd.m,lr=R*Z+24,lx=cx*Z+pan.x+Math.cos(nd.ang)*lr,ly=cy*Z+pan.y+Math.sin(nd.ang)*lr;',
+    '    var m=nd.m,lr=R+26,lx=cx+Math.cos(nd.ang)*lr,ly=cy+Math.sin(nd.ang)*lr;',
     '    var perp=nd.ang+Math.PI/2,off=9;',
     '    var hW=nd.done&&m.w===m.home.c,aW=nd.done&&m.w===m.away.c;',
     '    x.font="300 8px ui-monospace,monospace";',
@@ -523,12 +544,13 @@ export function page(matches: ShapedMatch[]): string {
     '    x.fillStyle=aW?"#51c4ff":nd.done?"#2a2a2a":"#6a6a6a";',
     '    x.fillText(m.away.f+" "+m.away.c,lx-Math.cos(perp)*off,ly-Math.sin(perp)*off);',
     '    if((nd.done||nd.live)&&m.s){',
-    '      x.font="600 "+(nd.sz*Z*0.85)+"px ui-monospace,monospace";',
+    '      var st=m.s.h+(m.pk?"("+m.pk.h+")":"")+"-"+m.s.a+(m.pk?"("+m.pk.a+")":"");',
+    '      x.font="600 "+(nd.sz*(m.pk?0.62:0.8))+"px ui-monospace,monospace";',
     '      x.fillStyle=nd.done?"#51c4ff":"#f47067";',
-    '      x.fillText(m.s.h+"-"+m.s.a,nd.x*Z+pan.x,nd.y*Z+pan.y);',
+    '      x.fillText(st,nd.x,nd.y);',
     '    }',
     '  });',
-    '  x.restore();',
+    '  x.setTransform(1,0,0,1,0,0);',
     '}',
     // Node layout depends only on DATA + canvas size, so build() runs in resize()
     // /loadGraph — not per frame. render() (called on every blink/pan/zoom frame)
@@ -547,23 +569,55 @@ export function page(matches: ShapedMatch[]): string {
     '  lc.width=Math.round(GW*DPR);lc.height=Math.round(GH*DPR);lc.style.width=GW+"px";lc.style.height=GH+"px";',
     '  gctx=ctx2d(gc);lctx=ctx2d(lc);build(GW,GH);render();',
     '}',
+    // Focal zoom: scale by `factor` about a screen point (fx,fy in CSS px), so the
+    // world point under the fingers/cursor stays fixed — the natural, non-clunky
+    // pinch/scroll behaviour. screen = pan + Z*world, so pan is rebased each step.
+    'function clampZ(z){return Math.min(MAXZ,Math.max(MINZ,z));}',
+    'function zoomAt(fx,fy,factor){var nz=clampZ(Z*factor),k=nz/Z;pan.x=fx-k*(fx-pan.x);pan.y=fy-k*(fy-pan.y);Z=nz;}',
+    // Eased glide to a target zoom/pan (used by the reset control + double-tap).
+    'function glide(tz,tx,ty){if(easeRAF)cancelAnimationFrame(easeRAF);',
+    '  (function step(){var dz=tz-Z,dx=tx-pan.x,dy=ty-pan.y;',
+    '    if(Math.abs(dz)<0.002&&Math.abs(dx)<0.4&&Math.abs(dy)<0.4){Z=tz;pan.x=tx;pan.y=ty;render();easeRAF=0;return;}',
+    '    Z+=dz*0.22;pan.x+=dx*0.22;pan.y+=dy*0.22;render();easeRAF=requestAnimationFrame(step);})();}',
+    'function resetView(){glide(1,0,0);}',
     'function interact(){',
     '  var el=document.getElementById("graph-wrap");if(!el)return;',
+    '  function rel(t){var r=el.getBoundingClientRect();return{x:t.clientX-r.left,y:t.clientY-r.top};}',
+    '  function cen(ts){return{x:(ts[0].clientX+ts[1].clientX)/2,y:(ts[0].clientY+ts[1].clientY)/2};}',
+    '  var lastTap=0;',
     '  el.addEventListener("touchstart",function(e){',
-    '    if(e.touches.length===1){LT={x:e.touches[0].clientX,y:e.touches[0].clientY};PINCH=false;}',
-    '    else if(e.touches.length===2){PINCH=true;LD=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}',
+    '    if(easeRAF){cancelAnimationFrame(easeRAF);easeRAF=0;}',
+    '    if(e.touches.length===1){LT=rel(e.touches[0]);PINCH=false;',
+    '      var now=performance.now();if(now-lastTap<300){resetView();lastTap=0;}else lastTap=now;}',
+    '    else if(e.touches.length===2){PINCH=true;LD=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);LC=rel({clientX:cen(e.touches).x,clientY:cen(e.touches).y});}',
     '  },{passive:true});',
     '  el.addEventListener("touchmove",function(e){',
-    '    if(e.touches.length===1&&LT&&!PINCH){pan.x+=e.touches[0].clientX-LT.x;pan.y+=e.touches[0].clientY-LT.y;LT={x:e.touches[0].clientX,y:e.touches[0].clientY};schedule();}',
-    '    else if(e.touches.length===2&&LD){var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);Z=Math.min(3,Math.max(0.4,Z*(d/LD)));LD=d;schedule();}',
+    '    if(e.touches.length===1&&LT&&!PINCH){var p=rel(e.touches[0]);pan.x+=p.x-LT.x;pan.y+=p.y-LT.y;LT=p;schedule();}',
+    '    else if(e.touches.length===2&&LD){',
+    '      var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);',
+    '      var c=rel({clientX:cen(e.touches).x,clientY:cen(e.touches).y});',
+    '      if(LC){pan.x+=c.x-LC.x;pan.y+=c.y-LC.y;}',           // two-finger drag pans
+    '      zoomAt(c.x,c.y,d/LD);LD=d;LC=c;schedule();',          // pinch zooms toward fingers
+    '    }',
     '  },{passive:true});',
-    '  el.addEventListener("touchend",function(){LT=null;LD=null;},{passive:true});',
+    '  el.addEventListener("touchend",function(e){if(e.touches.length===0){LT=null;}LD=null;LC=null;if(e.touches.length<2)PINCH=false;},{passive:true});',
+    // Trackpad pinch + Ctrl/Cmd-wheel + mouse wheel → zoom at the cursor.
+    '  el.addEventListener("wheel",function(e){e.preventDefault();if(easeRAF){cancelAnimationFrame(easeRAF);easeRAF=0;}',
+    '    var p=rel(e);zoomAt(p.x,p.y,Math.exp(-e.deltaY*0.0016));schedule();},{passive:false});',
+    '  el.addEventListener("dblclick",function(e){e.preventDefault();var p=rel(e);',
+    '    glide(clampZ(Z*1.8),p.x-1.8*(p.x-pan.x),p.y-1.8*(p.y-pan.y));});',
     '  el.addEventListener("click",function(e){',
-    '    var r=el.getBoundingClientRect(),mx=((e.clientX-r.left)-pan.x)/Z,my=((e.clientY-r.top)-pan.y)/Z;',
+    '    if(PINCH)return;var r=el.getBoundingClientRect(),mx=((e.clientX-r.left)-pan.x)/Z,my=((e.clientY-r.top)-pan.y)/Z;',
     '    var hit=null;for(var i=0;i<nodes.length;i++){if(Math.hypot(nodes[i].x-mx,nodes[i].y-my)<16){hit=nodes[i];break;}}',
     '    if(hit){var nav=document.querySelector(\'nav a[data-t="matches"]\');showTab("matches",nav);',
     '      setTimeout(function(){var c=document.getElementById("card-"+hit.id);if(c)c.scrollIntoView({behavior:"smooth",block:"center"});},60);}',
     '  });',
+    // Zoom controls (also drive desktop / accessibility).
+    '  function ctr(){return{x:GW/2,y:GH/2};}',
+    '  document.querySelectorAll("[data-z]").forEach(function(b){b.addEventListener("click",function(ev){',
+    '    ev.stopPropagation();var c=ctr();',
+    '    if(b.dataset.z==="in")zoomAt(c.x,c.y,1.4);else if(b.dataset.z==="out")zoomAt(c.x,c.y,1/1.4);else{resetView();return;}schedule();',
+    '  });});',
     '  window.addEventListener("resize",function(){clearTimeout(window._r);window._r=setTimeout(function(){resize();startBlink();},80);});',
     '}',
     'interact();loadGraph();',
@@ -597,9 +651,15 @@ ${sharedCss()}
   <div class=section>
     <div class=sh>
       <span class=sl>round of 32</span>
-      <span class="sl sl-m" style="margin-left:auto">${done} done${live ? ' · ' + live + ' live' : ''} · pinch to zoom</span>
+      <span class="sl sl-m" style="margin-left:auto">${done} done${live ? ' · ' + live + ' live' : ''} · pinch · scroll · 2× tap</span>
     </div>
-    <div id=graph-wrap><canvas id=gcanvas></canvas><canvas id=lcanvas></canvas></div>
+    <div id=graph-wrap><canvas id=gcanvas></canvas><canvas id=lcanvas></canvas>
+      <div class=zc>
+        <button data-z=in aria-label="zoom in">+</button>
+        <button data-z=out aria-label="zoom out">−</button>
+        <button data-z=reset aria-label="reset view">⤢</button>
+      </div>
+    </div>
     <div class=legend>
       <span class=leg><i style="background:#51c4ff"></i>upcoming</span>
       <span class=leg><i style="background:#7bd88f"></i>advanced</span>

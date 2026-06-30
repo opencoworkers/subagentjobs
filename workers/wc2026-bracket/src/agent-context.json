@@ -18,7 +18,7 @@
       "database_id": "305ed041-5dae-44e5-ab1f-8a63efd8627e",
       "tables": {
         "dim_team": ["team_code", "name", "flag"],
-        "fact_match": ["match_id", "seq", "match_date", "venue", "status", "home_code", "away_code", "home_score", "away_score", "winner_code", "prob_home", "note", "r16_group", "updated_at"]
+        "fact_match": ["match_id", "seq", "match_date", "venue", "status", "home_code", "away_code", "home_score", "away_score", "home_pens", "away_pens", "winner_code", "prob_home", "note", "r16_group", "updated_at"]
       }
     },
     "UPDATE_SECRET": {
@@ -48,6 +48,8 @@
       "status": "scheduled | in_progress | final",
       "home_score": "int|null",
       "away_score": "int|null",
+      "home_pens": "int|null (penalty-shootout goals when a tie went to pens)",
+      "away_pens": "int|null",
       "winner": "team_code|null (set when final)",
       "note": "string|null (e.g. 'AET', 'pens 4-2', \"62'\")"
     },

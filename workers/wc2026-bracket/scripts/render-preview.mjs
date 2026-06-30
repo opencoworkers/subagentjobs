@@ -22,12 +22,12 @@ const T = {
   DEN: ['Denmark', '🇩🇰'], GHA: ['Ghana', '🇬🇭'], SRB: ['Serbia', '🇷🇸'], IRN: ['Iran', '🇮🇷'],
 };
 const team = (c) => ({ c, n: T[c][0], f: T[c][1] });
-// [id,date,venue,status,home,away,hs,as,w,p,note,g]
+// [id,date,venue,status,home,away,hs,as,w,p,note,g,ph,pa]  (ph/pa = penalty goals)
 const raw = [
   ['M01', 'Jun 28', 'Toronto', 'final', 'CAN', 'RSA', 1, 0, 'CAN', 61, null, 1],
   ['M02', 'Jun 28', 'Los Angeles', 'final', 'USA', 'JPN', 2, 1, 'USA', 54, null, 1],
-  ['M03', 'Jun 29', 'Mexico City', 'final', 'MEX', 'KOR', 0, 0, 'MEX', 58, 'pens 4-3', 2],
-  ['M04', 'Jun 29', 'New York', 'final', 'BRA', 'NGA', 3, 1, 'BRA', 72, null, 2],
+  ['M03', 'Jun 29', 'Mexico City', 'final', 'MEX', 'KOR', 0, 0, 'MEX', 58, 'pens', 2, 4, 3],
+  ['M04', 'Jun 29', 'New York', 'final', 'BRA', 'NGA', 2, 2, 'BRA', 72, 'AET · pens', 2, 5, 4],
   ['M05', 'Jun 30', 'Miami', 'final', 'ARG', 'AUS', 2, 0, 'ARG', 77, null, 3],
   ['M06', 'Jun 30', 'Dallas', 'final', 'FRA', 'SEN', 2, 1, 'FRA', 68, null, 3],
   ['M07', 'Jul 01', 'Seattle', 'in_progress', 'ENG', 'ECU', 1, 0, null, 70, "62'", 4],
@@ -41,10 +41,12 @@ const raw = [
   ['M15', 'Jul 05', 'Vancouver', 'scheduled', 'DEN', 'GHA', null, null, null, 58, null, 8],
   ['M16', 'Jul 05', 'Monterrey', 'scheduled', 'SRB', 'IRN', null, null, null, 56, null, 8],
 ];
-const matches = raw.map(([id, date, venue, status, h, a, hs, as, w, p, note, g], i) => ({
+const matches = raw.map(([id, date, venue, status, h, a, hs, as, w, p, note, g, ph, pa], i) => ({
   id, seq: i + 1, status, date, venue,
   home: team(h), away: team(a),
-  s: hs == null ? null : { h: hs, a: as }, w, p: p == null ? null : { h: p }, note,
+  s: hs == null ? null : { h: hs, a: as },
+  pk: ph == null ? null : { h: ph, a: pa },
+  w, p: p == null ? null : { h: p }, note,
   _g: g,
 }));
 const groups = new Map();

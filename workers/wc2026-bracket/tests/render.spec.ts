@@ -9,6 +9,30 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
   });
 
 
+  test('renders penalty-shootout scores in parentheses', async ({ page }) => {
+    await page.goto('/');
+    // M03 (MEX 0(4)–0(3) KOR) and M04 (BRA 2(5)–2(4) NGA) are penalty results.
+    const pkTexts = await page.$$eval('.pk', (els) => els.map((e) => e.textContent));
+    expect(pkTexts).toContain('(4)');
+    expect(pkTexts).toContain('(3)');
+    expect(pkTexts.length).toBeGreaterThanOrEqual(4);
+  });
+
+  test('focal zoom keeps the point under the cursor fixed (trophy stays anchored)', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => typeof (window as any).zoomAt === 'function' && (window as any).GW > 0);
+    const drift = await page.evaluate(() => {
+      const w = window as any;
+      const fx = w.GW / 2, fy = w.GH / 2; // focal point = bracket centre (trophy)
+      const before = { x: (fx - w.pan.x) / w.Z, y: (fy - w.pan.y) / w.Z };
+      w.zoomAt(fx, fy, 2.5); // zoom in toward the centre
+      const after = { x: (fx - w.pan.x) / w.Z, y: (fy - w.pan.y) / w.Z };
+      return Math.hypot(after.x - before.x, after.y - before.y);
+    });
+    // The world point under the focal stays put — no drift → trophy doesn't break.
+    expect(drift).toBeLessThan(0.5);
+  });
+
   test('emulates the device and renders the graph crisply', async ({ page }) => {
     const errors: string[] = [];
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

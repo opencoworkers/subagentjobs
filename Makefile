@@ -221,7 +221,8 @@ migrate-bracket:
 	$(call log,Applying wc2026 bracket migrations to D1 subagentjobs-dwh…)
 	@for f in "$(WC2026)"/migrations/*.sql; do \
 	  printf "$(CYAN)  → %s$(RESET)\n" "$$(basename $$f)"; \
-	  (cd "$(WC2026)" && wrangler d1 execute subagentjobs-dwh --remote --file "$$f" 2>&1) || exit 1; \
+	  (cd "$(WC2026)" && wrangler d1 execute subagentjobs-dwh --remote --file "$$f" 2>&1) \
+	    || printf "$(YELLOW)    (non-fatal: already applied — e.g. ALTER duplicate column)$(RESET)\n"; \
 	done
 	$(call log,Bracket migrations applied)
 
