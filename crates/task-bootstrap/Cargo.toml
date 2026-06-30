@@ -1,0 +1,20 @@
+[package]
+name = "task-bootstrap"
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "task-bootstrap"
+path = "src/main.rs"
+
+[dependencies]
+schema = { path = "../schema" }
+anyhow.workspace = true
+tokio.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+clap.workspace = true
+serde_yaml = "0.9"

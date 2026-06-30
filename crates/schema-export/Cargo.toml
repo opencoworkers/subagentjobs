@@ -1,0 +1,13 @@
+[package]
+name = "schema-export"
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "schema-export"
+path = "src/main.rs"
+
+[dependencies]
+schema = { path = "../schema" }
+schemars.workspace = true
+serde_json.workspace = true
