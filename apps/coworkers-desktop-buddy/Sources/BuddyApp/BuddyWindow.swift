@@ -11,6 +11,7 @@
 //   • Approve / Deny buttons wired to session permission prompt
 
 import SwiftUI
+import UniformTypeIdentifiers
 import BuddyCore
 
 // MARK: - ViewModel
@@ -27,12 +28,25 @@ final class BuddyViewModel {
 
     let characterController = CharacterController()
 
+    /// BLE link to the physical Claude Hardware Buddy device (CoreBluetooth).
+    /// This is what connects the app to Claude Desktop's "Hardware Buddy & Maker
+    /// Devices" panel — the device speaks the same Nordic UART Service protocol.
+    let hardwareLink = HardwareBuddyLink()
+
     private let poller = SessionPoller()
     private var pollTask: Task<Void, Never>? = nil
+    /// Cumulative output tokens streamed to the device since app start.
+    private var cumulativeTokens: UInt64 = 0
 
     func startPolling() {
         guard pollTask == nil else { return }
         loadManifest()
+        // A permission decision pressed on the *physical* device forwards straight
+        // into the same file-drop path the on-screen Approve/Deny buttons use.
+        hardwareLink.onPermissionDecision = { decision in
+            BuddyViewModel.writeDecision(id: decision.id,
+                                         decision: decision.decision.rawValue)
+        }
         isPolling = true
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -72,10 +86,25 @@ final class BuddyViewModel {
             let tokensToday = sessions.reduce(0) { $0 + $1.tokensOut }
             state = BuddyState.from(sessions, tokensToday: tokensToday)
             characterController.update(state)
+            cumulativeTokens = max(cumulativeTokens, tokensToday)
+            // Stream the same state to the physical buddy if one is paired.
+            hardwareLink.send(HeartbeatSnapshot.from(state, tokens: cumulativeTokens))
             await summarise(state)
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Drop a permission decision JSON into the sessions directory. The Cowork
+    /// session runner polls for these and forwards the decision. Shared by the
+    /// on-screen Approve/Deny buttons and the physical device's buttons.
+    static func writeDecision(id: String, decision: String) {
+        let env = ProcessInfo.processInfo.environment
+        guard let dir = env["COWORK_SESSIONS_DIR"] else { return }
+        let url = URL(fileURLWithPath: dir)
+            .appendingPathComponent("permission-\(id).json")
+        let payload = #"{"cmd":"permission","id":"\#(id)","decision":"\#(decision)"}"#
+        try? payload.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private func summarise(_ state: BuddyState) async {
@@ -108,10 +137,12 @@ private extension Color {
 
 struct BuddyWindow: View {
     @State private var vm = BuddyViewModel()
+    @State private var showFolderImporter = false
 
     var body: some View {
         VStack(spacing: 0) {
             titleBar
+            hardwarePairingCard
             characterPanel
             tamagotchiRow
             Divider()
@@ -124,6 +155,72 @@ struct BuddyWindow: View {
         .background(.regularMaterial)
         .onAppear  { vm.startPolling() }
         .onDisappear { vm.stopPolling() }
+        .fileImporter(isPresented: $showFolderImporter,
+                      allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result {
+                let scoped = url.startAccessingSecurityScopedResource()
+                vm.hardwareLink.sendFolder(url)
+                if scoped { url.stopAccessingSecurityScopedResource() }
+            }
+        }
+    }
+
+    // MARK: - Hardware Buddy pairing card
+
+    /// Mirrors Claude Desktop's "Hardware Buddy & Maker Devices" panel: pair over
+    /// BLE, see battery, and push a data folder to the device.
+    private var hardwarePairingCard: some View {
+        let link = vm.hardwareLink
+        return HStack(spacing: 10) {
+            Image(systemName: link.state.isPaired ? "cpu.fill" : "cpu")
+                .font(.system(size: 14))
+                .foregroundStyle(link.state.isPaired ? Color.m5Orange : .secondary)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(link.state.label)
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+                if let bat = link.battery {
+                    Text("\(bat.usb ? "⚡︎ " : "")\(bat.pct)%")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            if let p = link.pushProgress {
+                Text("\(p.sent)/\(p.total)")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+
+            if link.state.isPaired {
+                Button { showFolderImporter = true } label: {
+                    Image(systemName: "tray.and.arrow.up")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Send a data folder to the device")
+
+                Button { link.disconnect(unpairDevice: false) } label: {
+                    Text("Unpair").font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            } else {
+                Button { link.connect() } label: {
+                    Text("Connect").font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.m5Orange)
+                .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color.primary.opacity(0.03))
     }
 
     // MARK: - Title bar
@@ -356,12 +453,7 @@ struct BuddyWindow: View {
     /// Drop a permission decision JSON into the sessions directory.
     /// The Cowork session runner polls for these and forwards the decision.
     private func writeDecision(id: String, decision: String) {
-        let env = ProcessInfo.processInfo.environment
-        guard let dir = env["COWORK_SESSIONS_DIR"] else { return }
-        let url = URL(fileURLWithPath: dir)
-            .appendingPathComponent("permission-\(id).json")
-        let payload = #"{"cmd":"permission","id":"\#(id)","decision":"\#(decision)"}"#
-        try? payload.write(to: url, atomically: true, encoding: .utf8)
+        BuddyViewModel.writeDecision(id: id, decision: decision)
     }
 
     // MARK: - Footer
