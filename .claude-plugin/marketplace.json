@@ -1,0 +1,15 @@
+{
+  "name": "subagentjobs",
+  "description": "Coworkers platform — role-based Claude plugins (design, engineering, product, data, legal, finance) surfaced through the Claude Hardware Buddy. See apps/coworkers-desktop-buddy/COWORKERS-PLATFORM.md.",
+  "owner": {
+    "name": "subagentjobs",
+    "url": "https://github.com/opencoworkers/subagentjobs"
+  },
+  "plugins": [
+    {
+      "name": "cwc-design",
+      "source": "./plugins/cwc-design",
+      "description": "The design coworker — 8-token design system, WCAG lint, Hardware Buddy character-pack artifacts, gated publish."
+    }
+  ]
+}

@@ -43,6 +43,10 @@ pub struct PermissionPrompt {
     /// Short hint shown on the device display, e.g. `"rm -rf /tmp/foo"`.
     #[serde(default)]
     pub hint: String,
+    /// Which coworker raised this gate, e.g. `"design"` or `"finance"`. Absent for
+    /// plain session permission prompts. Lets the device show *who* is asking.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
 }
 
 /// Fired once per completed assistant turn (dropped if > 4 KB serialised).
@@ -193,6 +197,7 @@ impl From<Vec<InferenceSession>> for HeartbeatSnapshot {
                 id: t.request_id.clone(),
                 tool: t.tool.clone(),
                 hint: t.hint.clone(),
+                role: None,
             });
         let msg = if waiting > 0 {
             format!("approve: {}", prompt.as_ref().map(|p| p.tool.as_str()).unwrap_or("?"))

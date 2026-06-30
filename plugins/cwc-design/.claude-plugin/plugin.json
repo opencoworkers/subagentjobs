@@ -1,0 +1,15 @@
+{
+  "name": "cwc-design",
+  "version": "0.1.0",
+  "description": "The design coworker — owns an 8-token design system, lints token sets (WCAG contrast), builds Claude Hardware Buddy character-pack artifacts from tokens, and gates publishing behind operator approval surfaced on the buddy device.",
+  "author": {
+    "name": "subagentjobs",
+    "url": "https://github.com/opencoworkers/subagentjobs"
+  },
+  "license": "MIT",
+  "keywords": ["coworker", "design", "design-system", "hardware-buddy", "mcp"],
+  "commands": ["./commands/design.md"],
+  "skills": ["./skills/design-playbook"],
+  "agents": ["./agents/design-coworker.md"],
+  "mcpServers": "./mcp/servers.json"
+}
