@@ -209,6 +209,16 @@ struct BuddyWindow: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+            } else if case .scanning = link.state {
+                // No physical device on hand is the common case (e.g. a pure
+                // FoundationModels/macOS setup with no Hardware Buddy at all) — give
+                // the user a way to cancel instead of "Searching…" with no recourse
+                // but quitting. The link itself also times out on its own after 15s.
+                Button { link.disconnect(unpairDevice: false) } label: {
+                    Text("Stop").font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             } else {
                 Button { link.connect() } label: {
                     Text("Connect").font(.system(size: 11, weight: .semibold))
@@ -372,22 +382,45 @@ struct BuddyWindow: View {
         }
     }
 
+    /// Per-coworker lane colour, keyed off the role name so each coworker reads
+    /// as a consistent colour across the session list and the prompt card.
+    private static func laneColor(for role: String) -> Color {
+        let palette: [Color] = [.m5Orange, .lvGreen, .cyan, .purple, .pink, .warnAmber]
+        let idx = abs(role.hashValue) % palette.count
+        return palette[idx]
+    }
+
     private func sessionRow(_ line: String) -> some View {
         let isRunning = line.contains("running")
         let isWaiting = line.contains("waiting")
         let dotColor: Color = isRunning ? .green : isWaiting ? .warnAmber : Color.secondary.opacity(0.4)
 
-        let display: String = {
-            if let r = line.range(of: #"^\[(running|waiting|idle)\] "#, options: .regularExpression) {
-                return String(line[r.upperBound...])
-            }
-            return line
-        }()
+        // Strip the "[status] " prefix BuddyState.from emits, then peel off an
+        // optional "role:: " lane prefix so each row can be split into its
+        // owning coworker's lane instead of one flat undifferentiated list.
+        var display = line
+        if let r = line.range(of: #"^\[(running|waiting|idle)\] "#, options: .regularExpression) {
+            display = String(line[r.upperBound...])
+        }
+        var role: String? = nil
+        if let r = display.range(of: #"^[\w-]+:: "#, options: .regularExpression) {
+            role = String(display[display.startIndex..<r.upperBound])
+                .trimmingCharacters(in: CharacterSet(charactersIn: ": "))
+            display = String(display[r.upperBound...])
+        }
 
         return HStack(spacing: 10) {
             Circle()
                 .fill(dotColor)
                 .frame(width: 6, height: 6)
+            if let role {
+                Text(role)
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Self.laneColor(for: role), in: RoundedRectangle(cornerRadius: 3))
+            }
             Text(display)
                 .font(.system(size: 12))
                 .foregroundStyle(isRunning ? .primary : .secondary)
@@ -406,8 +439,20 @@ struct BuddyWindow: View {
                     .foregroundStyle(Color.warnAmber)
                     .font(.system(size: 15))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(prompt.tool)
-                        .font(.system(size: 13, weight: .semibold))
+                    HStack(spacing: 6) {
+                        Text(prompt.tool)
+                            .font(.system(size: 13, weight: .semibold))
+                        // Which coworker raised this gate (WirePermissionPrompt.role),
+                        // so "approve" doesn't read as one undifferentiated session.
+                        if let role = prompt.role {
+                            Text(role)
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Self.laneColor(for: role), in: RoundedRectangle(cornerRadius: 3))
+                        }
+                    }
                     Text(prompt.hint)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)

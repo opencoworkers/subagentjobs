@@ -18,7 +18,13 @@
 #if canImport(CoreBluetooth)
 
 import Foundation
-import CoreBluetooth
+// CoreBluetooth predates Swift's strict-concurrency checking and its types
+// (CBCentralManager, CBPeripheral, CBService, CBCharacteristic) are not Sendable.
+// @preconcurrency tells the compiler to apply the framework's original (pre-Swift 6)
+// concurrency checking to those types, downgrading the "sending risks causing data
+// races" region-isolation errors below to warnings instead of hard build failures —
+// this is Apple's documented remedy for un-audited system frameworks.
+@preconcurrency import CoreBluetooth
 import BuddyCore
 
 // MARK: - Pairing state
@@ -84,6 +90,13 @@ public final class HardwareBuddyLink: NSObject {
     private var outbox: [OutFrame] = []
     private var lastSnapshot: HeartbeatSnapshot? = nil
 
+    /// How long `connect()` scans before giving up if no Claude-prefixed peripheral
+    /// answers. Without this, `central.scanForPeripherals` runs indefinitely —
+    /// burning radio/battery forever in the (common, expected) case where no
+    /// physical Hardware Buddy device is present.
+    private static let scanTimeout: Duration = .seconds(15)
+    private var scanTimeoutTask: Task<Void, Never>? = nil
+
     public override init() {
         super.init()
         central = CBCentralManager(delegate: self, queue: .main)
@@ -92,6 +105,8 @@ public final class HardwareBuddyLink: NSObject {
     // MARK: - Pairing controls (driven by the UI)
 
     /// Begin scanning for a Claude buddy. No-op if Bluetooth is unavailable.
+    /// Re-entrant: calling this again while already scanning just restarts the
+    /// timeout rather than stacking a second scan.
     public func connect() {
         guard central.state == .poweredOn else {
             state = .bluetoothOff
@@ -100,10 +115,32 @@ public final class HardwareBuddyLink: NSObject {
         guard !state.isPaired else { return }
         state = .scanning
         central.scanForPeripherals(withServices: [serviceID], options: nil)
+
+        scanTimeoutTask?.cancel()
+        scanTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.scanTimeout)
+            guard !Task.isCancelled else { return }
+            self?.stopScanningIfTimedOut()
+        }
+    }
+
+    /// Cancel an in-progress scan (button-driven or from the timeout) without
+    /// touching a connection that already exists — distinct from `disconnect()`,
+    /// which also tears down an active/connecting peripheral.
+    private func stopScanningIfTimedOut() {
+        guard case .scanning = state else { return }
+        central.stopScan()
+        scanTimeoutTask = nil
+        state = .idle
     }
 
     /// Disconnect and forget the current device (sends `unpair` first if linked).
+    /// Also safe to call while merely *scanning* (no peripheral yet) — it always
+    /// stops the scan so the radio never keeps running after the UI says idle.
     public func disconnect(unpairDevice: Bool = false) {
+        scanTimeoutTask?.cancel()
+        scanTimeoutTask = nil
+        central.stopScan()
         if unpairDevice, rxCharacteristic != nil {
             enqueue(DesktopCommand.unpair)
         }
@@ -232,8 +269,18 @@ public final class HardwareBuddyLink: NSObject {
 
 extension HardwareBuddyLink: CBCentralManagerDelegate {
 
+    // NOTE: CoreBluetooth delegate methods are protocol-required `nonisolated`, but
+    // this central is constructed with `queue: .main` (see `init`), so callbacks are
+    // *always* actually delivered on the main actor's executor. We use
+    // `MainActor.assumeIsolated` (synchronous, same-frame) rather than
+    // `Task { @MainActor in … }` (unstructured, async) because spawning a Task hands
+    // the non-Sendable CoreBluetooth objects (CBCentralManager/CBPeripheral/CBService)
+    // across an isolation boundary, which Swift 6's region isolation checker flags as
+    // a potential data race ("sending risks causing data races"). assumeIsolated runs
+    // the closure synchronously on the spot, so nothing is actually sent anywhere.
+
     public nonisolated func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        Task { @MainActor in
+        MainActor.assumeIsolated {
             switch central.state {
             case .poweredOn:
                 if case .scanning = self.state {
@@ -255,8 +302,10 @@ extension HardwareBuddyLink: CBCentralManagerDelegate {
         let advName = (advertisementData[CBAdvertisementDataLocalNameKey] as? String)
             ?? peripheral.name ?? "buddy"
         guard advName.hasPrefix(NordicUART.namePrefix) else { return }
-        Task { @MainActor in
+        MainActor.assumeIsolated {
             central.stopScan()
+            self.scanTimeoutTask?.cancel()
+            self.scanTimeoutTask = nil
             self.peripheral = peripheral
             peripheral.delegate = self
             self.state = .connecting(advName)
@@ -266,7 +315,7 @@ extension HardwareBuddyLink: CBCentralManagerDelegate {
 
     public nonisolated func centralManager(_ central: CBCentralManager,
                                            didConnect peripheral: CBPeripheral) {
-        Task { @MainActor in
+        MainActor.assumeIsolated {
             peripheral.discoverServices([self.serviceID])
         }
     }
@@ -274,7 +323,7 @@ extension HardwareBuddyLink: CBCentralManagerDelegate {
     public nonisolated func centralManager(_ central: CBCentralManager,
                                            didFailToConnect peripheral: CBPeripheral,
                                            error: Error?) {
-        Task { @MainActor in
+        MainActor.assumeIsolated {
             self.state = .failed(error?.localizedDescription ?? "connect failed")
             self.teardown()
         }
@@ -283,7 +332,7 @@ extension HardwareBuddyLink: CBCentralManagerDelegate {
     public nonisolated func centralManager(_ central: CBCentralManager,
                                            didDisconnectPeripheral peripheral: CBPeripheral,
                                            error: Error?) {
-        Task { @MainActor in
+        MainActor.assumeIsolated {
             self.teardown()
             self.state = .idle
         }
@@ -296,7 +345,7 @@ extension HardwareBuddyLink: CBPeripheralDelegate {
 
     public nonisolated func peripheral(_ peripheral: CBPeripheral,
                                        didDiscoverServices error: Error?) {
-        Task { @MainActor in
+        MainActor.assumeIsolated {
             guard let svc = peripheral.services?.first(where: { $0.uuid == self.serviceID }) else {
                 self.state = .failed("NUS service not found")
                 return
@@ -308,7 +357,7 @@ extension HardwareBuddyLink: CBPeripheralDelegate {
     public nonisolated func peripheral(_ peripheral: CBPeripheral,
                                        didDiscoverCharacteristicsFor service: CBService,
                                        error: Error?) {
-        Task { @MainActor in
+        MainActor.assumeIsolated {
             for ch in service.characteristics ?? [] {
                 if ch.uuid == self.rxID { self.rxCharacteristic = ch }
                 if ch.uuid == self.txID {
@@ -332,13 +381,13 @@ extension HardwareBuddyLink: CBPeripheralDelegate {
                                        didUpdateValueFor characteristic: CBCharacteristic,
                                        error: Error?) {
         guard let value = characteristic.value else { return }
-        Task { @MainActor in self.handleInbound(value) }
+        MainActor.assumeIsolated { self.handleInbound(value) }
     }
 
     public nonisolated func peripheral(_ peripheral: CBPeripheral,
                                        didWriteValueFor characteristic: CBCharacteristic,
                                        error: Error?) {
-        Task { @MainActor in
+        MainActor.assumeIsolated {
             self.rxInFlight = false
             if self.rxInFlightPush { self.advancePushProgress() }
             self.rxInFlightPush = false
@@ -347,7 +396,7 @@ extension HardwareBuddyLink: CBPeripheralDelegate {
     }
 
     public nonisolated func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
-        Task { @MainActor in self.flush() }
+        MainActor.assumeIsolated { self.flush() }
     }
 }
 

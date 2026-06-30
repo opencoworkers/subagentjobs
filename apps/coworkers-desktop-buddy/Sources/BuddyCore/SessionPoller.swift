@@ -75,9 +75,13 @@ public struct SessionPoller: Sendable {
         let requestId: String
         let tool: String
         let hint: String
+        /// Coworker that raised the gate (e.g. "design"), if any. Mirrors the
+        /// `role` field in `gate-<id>.json`. Optional for backward compatibility
+        /// with existing fixtures/tests that omit it.
+        let role: String?
         private enum CodingKeys: String, CodingKey {
             case requestId = "request_id"
-            case tool, hint
+            case tool, hint, role
         }
     }
 
@@ -86,7 +90,7 @@ public struct SessionPoller: Sendable {
         return entries.map { e in
             let status = sessionStatus(from: e.status)
             let pt = e.pendingTool.map { p in
-                PendingTool(requestId: p.requestId, tool: p.tool, hint: p.hint)
+                PendingTool(requestId: p.requestId, tool: p.tool, hint: p.hint, role: p.role)
             }
             return InferenceSession(
                 id: e.id, title: e.title, status: status,

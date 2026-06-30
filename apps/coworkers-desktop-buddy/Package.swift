@@ -39,7 +39,23 @@ let package = Package(
         "BuddyCore",
         .product(name: "ClaudeForFoundationModels", package: "ClaudeForFoundationModels"),
       ],
-      path: "Sources/BuddyApp"
+      path: "Sources/BuddyApp",
+      exclude: ["Info.plist"],
+      // `swift build`/`swift run` produce a bare Mach-O binary, not an .app bundle, so
+      // there's no Info.plist to read NSBluetoothAlwaysUsageDescription from. Embed one
+      // directly into the __TEXT,__info_plist section — the standard SPM technique for
+      // command-line-built executables that need a TCC usage-description prompt
+      // (Bluetooth, camera, mic, etc.) instead of crashing with
+      // "This app has crashed because it attempted to access privacy-sensitive data
+      // without a usage description."
+      linkerSettings: [
+        .unsafeFlags([
+          "-Xlinker", "-sectcreate",
+          "-Xlinker", "__TEXT",
+          "-Xlinker", "__info_plist",
+          "-Xlinker", "Sources/BuddyApp/Info.plist",
+        ])
+      ]
     ),
 
     // Terminal CLI (Linux + macOS, no FoundationModels)
