@@ -50,7 +50,8 @@ endef
         atomic toolchain \
         crawl-docs index-docs redis-start redis-stop \
         chrome-debug \
-        db-start db-stop migrate env
+        db-start db-stop migrate env \
+        schema load-tasks
 
 # ── Default ───────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,9 @@ help:
 	@printf "  $(CYAN)make db-stop$(RESET)      stop local Postgres container\n"
 	@printf "  $(CYAN)make migrate$(RESET)      apply all Postgres migrations (needs DATABASE_URL)\n"
 	@printf "  $(CYAN)make env$(RESET)          source scripts/setup.sh (exports env vars)\n"
+	@printf "\n  $(BOLD)Task management$(RESET)\n"
+	@printf "  $(CYAN)make schema$(RESET)       regenerate schemas/task-session.schema.json from Rust types\n"
+	@printf "  $(CYAN)make load-tasks$(RESET)   upsert sessions/tasks.yaml into Postgres fact_tasks\n"
 	@printf "\n"
 
 # ── Quality pipeline ──────────────────────────────────────────────────────────
@@ -261,4 +265,22 @@ migrate:
 # Usage:  eval "$(make env)"  or  source <(make env)
 env:
 	@bash "$(REPO)/scripts/setup.sh" 2>/dev/null | grep -E "^export " || true
+
+# ── Task management ───────────────────────────────────────────────────────────
+
+# Regenerate schemas/task-session.schema.json from Rust schemars types.
+# Run this after changing crates/schema/src/task.rs struct layouts.
+schema:
+	$(call log,Generating schemas/task-session.schema.json…)
+	RUSTC_WRAPPER="" cargo run -p schema-export > "$(REPO)/schemas/task-session.schema.json"
+	$(call log,Schema written to schemas/task-session.schema.json)
+
+# Upsert pending tasks from sessions/tasks.yaml into Postgres fact_tasks.
+# Idempotent — safe to run repeatedly. Requires DATABASE_URL.
+load-tasks:
+	$(call log,Bootstrapping tasks from sessions/tasks.yaml…)
+	@[ -n "$$DATABASE_URL" ] || (printf "$(YELLOW)⚠  DATABASE_URL not set$(RESET)\n" && exit 1)
+	RUSTC_WRAPPER="" cargo run -p task-bootstrap -- \
+	  --tasks "$(REPO)/sessions/tasks.yaml" \
+	  --database-url "$$DATABASE_URL"
 

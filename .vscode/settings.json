@@ -15,5 +15,10 @@
   // ── Rust Analyzer ────────────────────────────────────────────────────────
   "rust-analyzer.cargo.features": "all",
   "rust-analyzer.checkOnSave": true,
-  "rust-analyzer.check.command": "clippy"
+  "rust-analyzer.check.command": "clippy",
+
+  // ── YAML schema validation ────────────────────────────────────────────────
+  "yaml.schemas": {
+    "./schemas/task-session.schema.json": "sessions/tasks.yaml"
+  }
 }

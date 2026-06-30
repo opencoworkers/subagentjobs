@@ -20,7 +20,6 @@ use reqwest::Client;
 use rmcp::{
     ServerHandler, ServiceExt,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, Content, ServerInfo, Implementation},
     tool, tool_handler, tool_router,
 };
 use serde_json::json;

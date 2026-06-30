@@ -1,0 +1,400 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TaskSession",
+  "description": "A named agent session containing a task queue — schema v0.1.0.\n\nOne `TaskSession` maps to one Claude Code or Cowork session's work list.\nSerialise to JSON at session start/end to make task state durable across\ncontext resets.\n\n## Usage pattern\n```text\nPlan:    session.push(task_a); session.push(task_b); session.push(task_c);\nReview:  inspect session.stats(), reorder if needed\nExecute: loop { claim_next → run → complete }\nPersist: serde_json::to_string(&session) → write to CLAUDE.md or Redis\n```",
+  "type": "object",
+  "properties": {
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "id": {
+      "description": "Time-ordered UUID v7 — unique across sessions.",
+      "type": "string",
+      "format": "uuid"
+    },
+    "name": {
+      "description": "Human-readable name shown in progress output.",
+      "type": "string"
+    },
+    "queue": {
+      "$ref": "#/$defs/TaskQueue"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SemVer"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "queue",
+    "created_at",
+    "updated_at"
+  ],
+  "$defs": {
+    "SemVer": {
+      "description": "Semantic version (major.minor.patch) embedded in every versioned model.\n\nSerialises as a plain string `\"0.1.0\"` so diffs are human-readable.\nDeserialises from that same string form.\n\nThe version lives *inside* the serialised record, not just in the type\nsystem, so a future reader can detect and migrate stale data at runtime.",
+      "type": "object",
+      "properties": {
+        "major": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "minor": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "patch": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "major",
+        "minor",
+        "patch"
+      ]
+    },
+    "Task": {
+      "description": "A single task unit — schema v0.1.0.\n\n`id`, `content`, `status`, and `priority` are intentionally named and valued\nto match Claude Code's `TodoWrite` tool, so this struct can be hydrated\ndirectly from or serialised directly into a Claude Code task list.\n\nAdditional fields (`kind`, `notes`, timestamps) are preserved on round-trip\nbut ignored by Claude Code.\n\n## Schema evolution\nWhen you need to add a field, add it as `Option<T>` with\n`#[serde(skip_serializing_if = \"Option::is_none\")]` and bump `SCHEMA_VERSION`\nminor. Existing serialised tasks will deserialise with the new field as `None`.",
+      "type": "object",
+      "properties": {
+        "completed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "content": {
+          "description": "What to do — shown verbatim in the Claude Code task list.",
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "id": {
+          "description": "Time-ordered UUID v7 — sortable by creation time without a timestamp index.",
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "description": "Typed task discriminant — tells the executor *how* to do it.",
+          "$ref": "#/$defs/TaskKind"
+        },
+        "notes": {
+          "description": "Execution output, error message, or human notes written back after the run.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "$ref": "#/$defs/TaskPriority"
+        },
+        "schema_version": {
+          "description": "Schema version of *this record*. Compare against `Task::SCHEMA_VERSION`\nat read time to detect records that need migration.",
+          "$ref": "#/$defs/SemVer"
+        },
+        "status": {
+          "$ref": "#/$defs/TaskStatus"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "content",
+        "status",
+        "priority",
+        "kind",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "TaskKind": {
+      "description": "Discriminated union describing what kind of work a task represents.\n\nUsed by the executor to route tasks to the correct MCP tool, CLI command,\nor agent without parsing the `content` string.\n\nSerialises with an internal `\"kind\"` tag:\n```json\n{\"kind\": \"crawl_board\", \"board\": \"stripe\", \"platform\": \"greenhouse\"}\n{\"kind\": \"deploy\", \"worker\": \"subagentjobs-web\"}\n{\"kind\": \"todo\"}\n```\n\nAdd new variants as new tool types are introduced — existing serialised\nrecords are unaffected (unknown `kind` values deserialise to `Unknown`).",
+      "oneOf": [
+        {
+          "description": "Generic Claude Code–compatible todo. No special executor routing.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "todo"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Crawl a Greenhouse or Lever board via the Rust MCP server.",
+          "type": "object",
+          "properties": {
+            "board": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "crawl_board"
+            },
+            "platform": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "board",
+            "platform"
+          ]
+        },
+        {
+          "description": "Run a job eviction cycle (miss-count + tombstone pass).",
+          "type": "object",
+          "properties": {
+            "board": {
+              "description": "None = all boards in the cron worker.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "const": "evict_stale"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Deploy a Cloudflare Worker via `wrangler deploy`.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "deploy"
+            },
+            "message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "worker": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "worker"
+          ]
+        },
+        {
+          "description": "Apply a SQL migration file to a D1 or Postgres database.",
+          "type": "object",
+          "properties": {
+            "database": {
+              "description": "Defaults to `subagentjobs-dwh` if None.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "file": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "migration"
+            }
+          },
+          "required": [
+            "kind",
+            "file"
+          ]
+        },
+        {
+          "description": "Commit staged changes and push to GitHub.",
+          "type": "object",
+          "properties": {
+            "branch": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "const": "git_push"
+            },
+            "message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Review a pull request or diff.",
+          "type": "object",
+          "properties": {
+            "focus": {
+              "description": "E.g. \"security\", \"performance\", \"correctness\"",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "const": "code_review"
+            },
+            "pr_url": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "A subtask spawned by a parent agent session.",
+          "type": "object",
+          "properties": {
+            "agent_type": {
+              "description": "Claude Code agent type: \"claude\", \"explore\", \"plan\", etc.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "const": "sub_task"
+            },
+            "parent_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "kind",
+            "parent_id"
+          ]
+        },
+        {
+          "description": "Raw shell command to run in the workspace sandbox.",
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "shell_command"
+            },
+            "working_dir": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "command"
+          ]
+        },
+        {
+          "description": "Fallback for future variants not yet known by this version of the code.\nPreserves the raw JSON so the task can be re-serialised without data loss.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unknown"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "TaskPriority": {
+      "description": "Priority level. `Ord` is defined so that `High < Medium < Low`,\nmeaning ascending sort yields highest-priority tasks first.",
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "TaskQueue": {
+      "description": "Priority-ordered task queue — schema v0.1.0.\n\nPush tasks in any order during the *planning* phase, then call `claim_next`\nin the *execution* phase. `claim_next` always returns the highest-priority\n`Pending` task, with FIFO tie-breaking via UUIDv7 time-ordering.\n\nThe queue is intentionally serialisable so it can be:\n- written to disk between sessions\n- stored in Redis as a durable work list\n- sent over the wire to a remote executor",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/SemVer"
+        },
+        "tasks": {
+          "description": "Ordered by insertion. Claim logic selects by priority, not position.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Task"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "tasks"
+      ]
+    },
+    "TaskStatus": {
+      "description": "Execution state of a task.\n\nString values match Claude Code's `TodoWrite` tool exactly so tasks\nserialised here round-trip through Claude's tool calls without translation.",
+      "oneOf": [
+        {
+          "description": "Not yet started. Default state on creation.",
+          "type": "string",
+          "const": "pending"
+        },
+        {
+          "description": "Claimed by an executor; work is underway.",
+          "type": "string",
+          "const": "in_progress"
+        },
+        {
+          "description": "Work finished successfully.",
+          "type": "string",
+          "const": "completed"
+        },
+        {
+          "description": "Abandoned — will not be retried.",
+          "type": "string",
+          "const": "cancelled"
+        }
+      ]
+    }
+  }
+}

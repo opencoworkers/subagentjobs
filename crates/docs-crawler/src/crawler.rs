@@ -1,7 +1,7 @@
 use anyhow::Result;
 use durable_store::DurableStore;
 use futures::stream::{self, StreamExt};
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tracing::{error, info, warn};
 
@@ -27,7 +27,7 @@ pub const DEFAULT_TARGETS: &[&str] = &[
 pub async fn crawl(
     targets: &[&str],
     store: Option<DurableStore>,
-    docs_root: &PathBuf,
+    docs_root: &Path,
     harvester: &mut Harvester,
 ) -> Result<()> {
     let client = reqwest::Client::builder()
@@ -90,10 +90,10 @@ pub async fn crawl(
     let store_arc = store.map(Arc::new);
     let pages: Arc<Mutex<Vec<durable_store::DocPage>>> = Arc::new(Mutex::new(Vec::new()));
     let harvester_arc: Arc<Mutex<&mut Harvester>> = Arc::new(Mutex::new(harvester));
-    let docs_root = Arc::new(docs_root.clone());
+    let docs_root = Arc::new(docs_root.to_path_buf());
     let written = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
-    stream::iter(all_urls.into_iter())
+    stream::iter(all_urls)
         .map(|url| {
             let store_ref = store_arc.clone();
             let dl = downloader.clone();
