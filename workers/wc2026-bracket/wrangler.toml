@@ -1,4 +1,4 @@
-name = "subagentjobs-wc2026"
+name = "wc2026-bracket"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 

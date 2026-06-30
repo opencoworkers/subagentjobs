@@ -1,4 +1,4 @@
-# subagentjobs-wc2026 — subagentdata.com
+# wc2026-bracket — subagentdata.com
 
 World Cup 2026 Round-of-32 **radial bracket**, built to the same design system
 as `workers/web` (subagentjobs.com): TypeScript module Worker, **D1-backed**,

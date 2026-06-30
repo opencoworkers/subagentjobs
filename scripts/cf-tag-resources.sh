@@ -20,7 +20,7 @@ TOML="$REPO_ROOT/cloudflare.toml"
 # ── read account + tag from cloudflare.toml ──────────────────────────────────
 ACCOUNT="${CLOUDFLARE_ACCOUNT_ID:-$(grep -E '^account' "$TOML" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')}"
 TAG="$(grep -E '^tag' "$TOML" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')"
-WORKER="subagentjobs-wc2026"
+WORKER="wc2026-bracket"
 
 : "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN}"
 

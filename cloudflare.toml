@@ -9,7 +9,7 @@ tag     = "github:opencoworkers/subagentjobs"
 
 [workers]
 web      = "subagentjobs-web"      # subagentjobs.com/* — Hono TS, D1 read-only
-wc2026   = "subagentjobs-wc2026"   # subagentdata.com/* — WC2026 bracket, D1 + Secrets Store
+wc2026   = "wc2026-bracket"        # subagentdata.com/* — WC2026 bracket, D1 + Secrets Store
 etl      = "subagentjobs-etl"      # CDC crawler (JS shim → Rust MCP, deprecated)
 enrich   = "subagentjobs-enrich"   # taxonomy enrichment (JS, deprecated)
 # next:   subagentjobs-mcp         # Rust MCP server binary (task-state-machine)
