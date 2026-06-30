@@ -169,6 +169,75 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
     expect(await page.evaluate(() => document.activeElement?.classList.contains('dclose') === true)).toBe(false);
   });
 
+  test('roving tabindex + arrow-key ring navigation with an aria-live region', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => Array.isArray((window as any).NAV) && (window as any).NAV.length === 16);
+
+    // Roving tabindex: exactly one match node is in the tab order; the rest are -1.
+    const counts = await page.evaluate(() => {
+      const ns = Array.from(document.querySelectorAll('.node[data-id]'));
+      return {
+        zero: ns.filter((n) => n.getAttribute('tabindex') === '0').length,
+        negone: ns.filter((n) => n.getAttribute('tabindex') === '-1').length,
+      };
+    });
+    expect(counts.zero).toBe(1);
+    expect(counts.negone).toBe(15);
+
+    // The ring order the arrows walk (match nodes sorted by angle).
+    const order: string[] = await page.evaluate(() => (window as any).NAV.map((n: any) => n.id));
+    expect(order.length).toBe(16);
+
+    // Focus the tab stop, then ArrowRight → next clockwise by angle (with wrap).
+    const startId = await page.evaluate(() => {
+      const s = document.querySelector('.node[data-id][tabindex="0"]') as SVGElement;
+      s.focus();
+      return s.getAttribute('data-id');
+    });
+    const si = order.indexOf(startId!);
+
+    await page.keyboard.press('ArrowRight');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-id'))).toBe(order[(si + 1) % 16]);
+    // The single tab stop roves with focus.
+    const tabstops = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.node[data-id][tabindex="0"]')).map((n) => n.getAttribute('data-id')),
+    );
+    expect(tabstops).toEqual([order[(si + 1) % 16]]);
+
+    // ArrowLeft returns; ArrowDown / ArrowUp mirror Right / Left on the single ring.
+    await page.keyboard.press('ArrowLeft');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-id'))).toBe(startId);
+    await page.keyboard.press('ArrowDown');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-id'))).toBe(order[(si + 1) % 16]);
+    await page.keyboard.press('ArrowUp');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-id'))).toBe(startId);
+
+    // Home / End → first / last by angle.
+    await page.keyboard.press('Home');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-id'))).toBe(order[0]);
+    await page.keyboard.press('End');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-id'))).toBe(order[15]);
+
+    // Per-move feedback is the focused node's COMPLETE aria-label (matchup + status),
+    // announced natively — not a duplicate live-region echo (APG roving-tabindex).
+    const label = await page.evaluate(() => document.activeElement?.getAttribute('aria-label') || '');
+    expect(label).toMatch(/ versus /);
+
+    // The polite live region exists but stays quiet during pure navigation (no double-speech).
+    const liveAttrs = await page.evaluate(() => {
+      const l = document.getElementById('sr-updates');
+      return { present: !!l, live: l?.getAttribute('aria-live'), navText: (l?.textContent || '').trim() };
+    });
+    expect(liveAttrs.present).toBe(true);
+    expect(liveAttrs.live).toBe('polite');
+    expect(liveAttrs.navText).toBe(''); // not echoing the focused node
+
+    // It DOES announce the match when its detail card opens (focus jumps to "close").
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#detail')).toBeVisible();
+    await page.waitForFunction(() => / versus /.test(document.getElementById('sr-updates')?.textContent || ''));
+  });
+
   test('tab switch uses the View Transitions API without errors', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));
