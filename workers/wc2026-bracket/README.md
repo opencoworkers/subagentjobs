@@ -75,6 +75,20 @@ toolchain (`scripts/toolchain/setup-linux.sh`) and the cloud `scripts/setup.sh`
 latest results, diffs them against `/api/bracket`, and POSTs only the changed
 matches to `/api/update` — the same agent-driven pattern as `make review` / `make pr`.
 
+## Radial graph — symmetric layout (d3-hierarchy)
+
+The bracket is a **full balanced tournament tree** — 32 teams → 16 R32 → 8 R16 →
+4 QF → 2 SF → final — laid out radially by **[`d3-hierarchy`](https://github.com/d3/d3-hierarchy)**
+(`d3.cluster()`), the standard tree-layout package. The cluster places leaves
+evenly on the outer ring and centres every parent on its children, so the
+left/right halves are **symmetric by construction** (no lopsided slice). The
+layout runs **in the Worker** (`src/layout.ts`): it emits each node's normalized
+polar coordinates (`ang`, `r ∈ [0,1]`) plus links into `/api/bracket` → `graph`,
+so d3 never ships to the browser — the client just draws the precomputed tree on
+canvas (team crests on the outer ring, match scores one ring in, round dots
+inward, trophy at the centre). A test asserts the 32 leaves are evenly spaced and
+the round counts are balanced.
+
 ## Radial graph — interaction (the core of the app)
 
 The radial bracket is the product; its zoom/pan is built to feel native:

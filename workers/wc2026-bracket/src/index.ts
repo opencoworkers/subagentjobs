@@ -25,6 +25,8 @@
  */
 
 import agentContext from './agent-context.json';
+import { bracketGraph } from './layout';
+export { bracketGraph } from './layout';
 
 export interface Env {
   DB: D1Database;
@@ -90,8 +92,8 @@ const META = {
 } as const;
 
 // ── Shaped match row ──────────────────────────────────────────────────────────
-interface Side { c: string; n: string; f: string }
-interface ShapedMatch {
+export interface Side { c: string; n: string; f: string }
+export interface ShapedMatch {
   id: string;
   seq: number;
   status: string;
@@ -157,7 +159,9 @@ async function bracketPayload(env: Env) {
     loadR16(env),
     env.DB.prepare(`SELECT MAX(updated_at) AS u FROM fact_match`).first<{ u: string | null }>(),
   ]);
-  return { matches, r16, meta: { updated: upd?.u ?? null, ...META } };
+  // Symmetric radial tree positions (d3-hierarchy), computed server-side.
+  const graph = bracketGraph(matches, r16);
+  return { matches, r16, graph, meta: { updated: upd?.u ?? null, ...META } };
 }
 
 const countBy = (ms: ShapedMatch[], st: string) => ms.filter((m) => m.status === st).length;
@@ -460,7 +464,7 @@ export function page(matches: ShapedMatch[]): string {
   //    schedule a single coalesced frame.
   //  • prefers-reduced-motion disables the blink loop entirely.
   const js = [
-    'var DATA=null,nodes=[],pan={x:0,y:0};',
+    'var DATA=null,nodes=[],pan={x:0,y:0},GR={cx:0,cy:0,R:1};',
     'var Z=1,LT=null,LD=null,LC=null,PINCH=false,MINZ=0.6,MAXZ=6,easeRAF=0;',
     'var GW=0,GH=0,DPR=1,gctx=null,lctx=null,pending=false,blinkRAF=0;',
     'var RM=(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)||false;',
@@ -488,66 +492,56 @@ export function page(matches: ShapedMatch[]): string {
     '    DATA=d;resize();startBlink();',
     '  });',
     '}',
-    'function gn(id){for(var i=0;i<nodes.length;i++)if(nodes[i].id===id)return nodes[i];return null;}',
+    'var TROPHY="\\uD83C\\uDFC6";',
+    'function col(s){return s==="adv"?"#7bd88f":s==="live"?"#f47067":s==="up"?"#51c4ff":s==="elim"?"#2a2a2a":"#242424";}',
+    'function lcol(s){return s==="adv"?"#15321f":s==="live"?"#3a0f0f":s==="up"?"#12222d":"#181818";}',
+    // build(): project the server-computed symmetric radial tree (DATA.graph,
+    // laid out by d3-hierarchy) into screen coordinates. Polar: world =
+    // centre + (cos,sin)(ang) · r · R, with r in [0,1] (0 = trophy, 1 = teams).
     'function build(W,H){',
-    '  if(!DATA)return;nodes=[];',
-    '  var cx=W/2,cy=H/2,R=Math.min(W,H)*0.38,M=DATA.matches,n=M.length;',
-    '  for(var i=0;i<n;i++){',
-    '    var m=M[i],ang=(i/n)*Math.PI*2-Math.PI/2;',
-    '    nodes.push({id:m.id,ang:ang,x:cx+Math.cos(ang)*R,y:cy+Math.sin(ang)*R,m:m,',
-    '      done:m.status==="final",live:m.status==="in_progress",sz:m.status==="final"?8:m.status==="in_progress"?10:6});',
-    '  }',
+    '  if(!DATA||!DATA.graph)return;nodes=[];',
+    '  var cx=W/2,cy=H/2,R=Math.min(W,H)*0.40;GR={cx:cx,cy:cy,R:R};',
+    '  DATA.graph.nodes.forEach(function(g){',
+    '    nodes.push({g:g,x:cx+Math.cos(g.ang)*g.r*R,y:cy+Math.sin(g.ang)*g.r*R,',
+    '      sz:g.k==="team"?0:g.k==="match"?(g.live?9:g.st==="adv"?8:6):g.k==="r16"?3.5:g.k==="final"?0:2.5});',
+    '  });',
     '}',
     'function draw(W,H,blink){',
-    '  if(!gctx)return;gctx.clearRect(0,0,W*DPR,H*DPR);',
-    '  gctx.save();gctx.scale(DPR,DPR);gctx.translate(pan.x,pan.y);gctx.scale(Z,Z);',
-    '  var cx=W/2,cy=H/2,R=Math.min(W,H)*0.38;',
-    '  gctx.beginPath();gctx.arc(cx,cy,R,0,Math.PI*2);gctx.strokeStyle="#1f1f1f";gctx.lineWidth=1;gctx.stroke();',
-    '  gctx.beginPath();gctx.arc(cx,cy,R*0.62,0,Math.PI*2);gctx.strokeStyle="#161616";gctx.setLineDash([2,6]);gctx.stroke();gctx.setLineDash([]);',
-    '  if(DATA.r16)DATA.r16.forEach(function(p){',
-    '    var a=gn(p[0]),b=gn(p[1]);if(!a||!b)return;var Rr=R*0.62,d=b.ang-a.ang;',
-    '    if(d>Math.PI)d-=Math.PI*2;if(d<-Math.PI)d+=Math.PI*2;',
-    '    gctx.beginPath();d>=0?gctx.arc(cx,cy,Rr,a.ang,a.ang+d):gctx.arc(cx,cy,Rr,a.ang,a.ang+d,true);',
-    '    gctx.strokeStyle="#13241a";gctx.lineWidth=1.5;gctx.stroke();',
-    '  });',
-    '  nodes.forEach(function(nd){',
-    '    gctx.beginPath();gctx.moveTo(cx,cy);gctx.lineTo(nd.x,nd.y);',
-    '    gctx.strokeStyle=nd.done?"#15321f":nd.live?"#2a0f0f":"#161616";gctx.lineWidth=1;gctx.stroke();',
-    '  });',
-    '  nodes.forEach(function(nd){',
-    '    var a=nd.live?(0.55+0.45*blink):1;gctx.globalAlpha=a;',
+    '  if(!gctx||!DATA.graph)return;gctx.setTransform(1,0,0,1,0,0);gctx.clearRect(0,0,W*DPR,H*DPR);',
+    '  gctx.setTransform(DPR,0,0,DPR,0,0);gctx.translate(pan.x,pan.y);gctx.scale(Z,Z);',
+    '  var cx=GR.cx,cy=GR.cy,R=GR.R;',
+    '  [0.2,0.4,0.6,0.8,1].forEach(function(rf){gctx.beginPath();gctx.arc(cx,cy,rf*R,0,Math.PI*2);',
+    '    gctx.strokeStyle=rf===1?"#1c1c1c":"#141414";gctx.lineWidth=1;gctx.stroke();});',
+    // links: child (outer) → parent (inner), a gentle radial curve (control bent
+    // along the child angle) — the classic radial-bracket connector.
+    '  DATA.graph.links.forEach(function(L){var a=nodes[L[0]],b=nodes[L[1]];if(!a||!b)return;',
+    '    var mr=(a.g.r+b.g.r)*0.5*R,mx=cx+Math.cos(b.g.ang)*mr,my=cy+Math.sin(b.g.ang)*mr;',
+    '    gctx.beginPath();gctx.moveTo(b.x,b.y);gctx.quadraticCurveTo(mx,my,a.x,a.y);',
+    '    gctx.strokeStyle=lcol(b.g.st);gctx.lineWidth=b.g.k==="team"?1:1.3;gctx.stroke();});',
+    // round nodes (match / R16 / QF / SF). Team leaves + trophy live on the label layer.
+    '  nodes.forEach(function(nd){var g=nd.g;if(g.k==="team"||g.k==="final"||nd.sz<=0)return;',
+    '    var al=g.live?(0.55+0.45*blink):1;gctx.globalAlpha=al;',
     '    gctx.beginPath();gctx.arc(nd.x,nd.y,nd.sz,0,Math.PI*2);',
-    '    gctx.fillStyle=nd.live?"#2a0f0f":nd.done?"#0f2417":"#111";gctx.fill();',
-    '    gctx.strokeStyle=nd.live?"#f47067":nd.done?"#7bd88f":"#51c4ff";gctx.lineWidth=1.2;gctx.stroke();',
-    '    gctx.globalAlpha=1;',
-    '  });',
-    '  gctx.restore();',
+    '    gctx.fillStyle=g.st==="live"?"#2a0f0f":g.st==="adv"?"#0f2417":"#111";gctx.fill();',
+    '    gctx.strokeStyle=col(g.st);gctx.lineWidth=g.k==="match"?1.3:1;gctx.stroke();gctx.globalAlpha=1;});',
+    '  gctx.setTransform(1,0,0,1,0,0);',
     '}',
-    // Labels share the EXACT world transform of draw() — translate(pan).scale(Z)
-    // around the canvas — so the trophy at the bracket centre and every label /
-    // score stay locked to the graph at any zoom or pan (no more drifting crown).
+    // Label layer shares the EXACT world transform, so the trophy (world centre),
+    // team crests and scores stay locked to the graph at any zoom/pan.
     'function labels(W,H){',
-    '  if(!lctx)return;var x=lctx;x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,W*DPR,H*DPR);',
+    '  if(!lctx||!DATA.graph)return;var x=lctx;x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,W*DPR,H*DPR);',
     '  x.setTransform(DPR,0,0,DPR,0,0);x.translate(pan.x,pan.y);x.scale(Z,Z);',
-    '  var cx=W/2,cy=H/2,R=Math.min(W,H)*0.38;',
-    '  x.textAlign="center";x.textBaseline="middle";',
-    '  x.font="18px serif";x.fillText("\\uD83C\\uDFC6",cx,cy-4);',
-    '  x.font="300 6px ui-monospace,monospace";x.fillStyle="#3a3a3a";',
-    '  x.fillText("FINAL \\u00b7 JUL 19",cx,cy+11);',
-    '  nodes.forEach(function(nd){',
-    '    var m=nd.m,lr=R+26,lx=cx+Math.cos(nd.ang)*lr,ly=cy+Math.sin(nd.ang)*lr;',
-    '    var perp=nd.ang+Math.PI/2,off=9;',
-    '    var hW=nd.done&&m.w===m.home.c,aW=nd.done&&m.w===m.away.c;',
-    '    x.font="300 8px ui-monospace,monospace";',
-    '    x.fillStyle=hW?"#51c4ff":nd.done?"#2a2a2a":"#6a6a6a";',
-    '    x.fillText(m.home.f+" "+m.home.c,lx+Math.cos(perp)*off,ly+Math.sin(perp)*off);',
-    '    x.fillStyle=aW?"#51c4ff":nd.done?"#2a2a2a":"#6a6a6a";',
-    '    x.fillText(m.away.f+" "+m.away.c,lx-Math.cos(perp)*off,ly-Math.sin(perp)*off);',
-    '    if((nd.done||nd.live)&&m.s){',
-    '      var st=m.s.h+(m.pk?"("+m.pk.h+")":"")+"-"+m.s.a+(m.pk?"("+m.pk.a+")":"");',
-    '      x.font="600 "+(nd.sz*(m.pk?0.62:0.8))+"px ui-monospace,monospace";',
-    '      x.fillStyle=nd.done?"#51c4ff":"#f47067";',
-    '      x.fillText(st,nd.x,nd.y);',
+    '  var cx=GR.cx,cy=GR.cy;x.textAlign="center";x.textBaseline="middle";',
+    '  x.font="20px serif";x.fillText(TROPHY,cx,cy);',
+    '  nodes.forEach(function(nd){var g=nd.g;',
+    '    if(g.k==="team"){',
+    '      x.font="15px serif";x.fillText(g.flag,nd.x,nd.y);',
+    '      var d=Math.hypot(nd.x-cx,nd.y-cy)||1,ux=(nd.x-cx)/d,uy=(nd.y-cy)/d;',
+    '      x.font="400 6px ui-monospace,monospace";x.fillStyle=g.st==="adv"?"#7bd88f":g.st==="elim"?"#333":"#8a8a8a";',
+    '      x.fillText(g.code,nd.x+ux*10,nd.y+uy*10);',
+    '    }else if(g.k==="match"&&g.score){',
+    '      x.font="600 "+(g.score.indexOf("(")>=0?6:7)+"px ui-monospace,monospace";',
+    '      x.fillStyle=g.live?"#f47067":"#51c4ff";x.fillText(g.score,nd.x,nd.y);',
     '    }',
     '  });',
     '  x.setTransform(1,0,0,1,0,0);',
@@ -608,9 +602,10 @@ export function page(matches: ShapedMatch[]): string {
     '    glide(clampZ(Z*1.8),p.x-1.8*(p.x-pan.x),p.y-1.8*(p.y-pan.y));});',
     '  el.addEventListener("click",function(e){',
     '    if(PINCH)return;var r=el.getBoundingClientRect(),mx=((e.clientX-r.left)-pan.x)/Z,my=((e.clientY-r.top)-pan.y)/Z;',
-    '    var hit=null;for(var i=0;i<nodes.length;i++){if(Math.hypot(nodes[i].x-mx,nodes[i].y-my)<16){hit=nodes[i];break;}}',
+    '    var hit=null,bd=16;for(var i=0;i<nodes.length;i++){var g=nodes[i].g;if(!g||!g.mid)continue;',
+    '      var dd=Math.hypot(nodes[i].x-mx,nodes[i].y-my);if(dd<bd){bd=dd;hit=g;}}',
     '    if(hit){var nav=document.querySelector(\'nav a[data-t="matches"]\');showTab("matches",nav);',
-    '      setTimeout(function(){var c=document.getElementById("card-"+hit.id);if(c)c.scrollIntoView({behavior:"smooth",block:"center"});},60);}',
+    '      setTimeout(function(){var c=document.getElementById("card-"+hit.mid);if(c)c.scrollIntoView({behavior:"smooth",block:"center"});},60);}',
     '  });',
     // Zoom controls (also drive desktop / accessibility).
     '  function ctr(){return{x:GW/2,y:GH/2};}',

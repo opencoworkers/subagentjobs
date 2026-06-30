@@ -18,6 +18,23 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
     expect(pkTexts.length).toBeGreaterThanOrEqual(4);
   });
 
+  test('radial tree is symmetric: 32 leaves evenly spaced, balanced rounds', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => (window as any).DATA && (window as any).DATA.graph);
+    const g = await page.evaluate(() => {
+      const G = (window as any).DATA.graph;
+      const kinds: Record<string, number> = {};
+      G.nodes.forEach((n: any) => (kinds[n.k] = (kinds[n.k] || 0) + 1));
+      const ang = G.nodes.filter((n: any) => n.k === 'team').map((n: any) => n.ang).sort((a: number, b: number) => a - b);
+      const gaps = ang.slice(1).map((a: number, i: number) => a - ang[i]);
+      return { kinds, minGap: Math.min(...gaps), maxGap: Math.max(...gaps) };
+    });
+    // Full balanced tournament tree.
+    expect(g.kinds).toEqual({ final: 1, sf: 2, qf: 4, r16: 8, match: 16, team: 32 });
+    // Even angular spacing ⇒ left/right symmetric (no lopsided slice).
+    expect(g.maxGap - g.minGap).toBeLessThan(0.01);
+  });
+
   test('focal zoom keeps the point under the cursor fixed (trophy stays anchored)', async ({ page }) => {
     await page.goto('/');
     await page.waitForFunction(() => typeof (window as any).zoomAt === 'function' && (window as any).GW > 0);

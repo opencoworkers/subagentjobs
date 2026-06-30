@@ -62,7 +62,8 @@ await build({
   entryPoints: [join(root, 'src', 'index.ts')],
   bundle: true, format: 'esm', platform: 'neutral', outfile: tmp, logLevel: 'silent',
 });
-const { page } = await import('file://' + tmp);
+const { page, bracketGraph } = await import('file://' + tmp);
+payload.graph = bracketGraph(payload.matches, payload.r16); // symmetric radial tree (d3-hierarchy)
 await writeFile(join(outDir, 'index.html'), page(payload.matches), 'utf8');
 await writeFile(join(outDir, 'bracket.json'), JSON.stringify(payload), 'utf8');
 await rm(tmp, { force: true });
