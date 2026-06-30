@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS fact_match (
   away_code   TEXT NOT NULL REFERENCES dim_team(team_code),
   home_score  INTEGER,
   away_score  INTEGER,
+  home_pens   INTEGER,                             -- penalty-shootout goals (tie decided on pens)
+  away_pens   INTEGER,
   winner_code TEXT,                                -- set when status='final'
   prob_home   REAL,                                -- pre-match win prob for home (0-100)
   note        TEXT,                                -- 'AET', 'pens 4-2', …

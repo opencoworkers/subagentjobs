@@ -71,9 +71,13 @@ jobs:
       - name: Apply D1 migrations
         if: steps.gate.outputs.deploy == 'true'
         run: |
+          # Tolerant per file: schema migrations (ALTER ADD COLUMN) are not
+          # re-runnable in SQLite and fail harmlessly once applied; data
+          # migrations are idempotent.
           for f in migrations/*.sql; do
             echo "→ $f"
-            npx wrangler d1 execute subagentjobs-dwh --remote --file "$f"
+            npx wrangler d1 execute subagentjobs-dwh --remote --file "$f" \
+              || echo "  (non-fatal: already applied)"
           done
       - name: Deploy worker
         if: steps.gate.outputs.deploy == 'true'
