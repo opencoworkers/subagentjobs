@@ -2,6 +2,13 @@ import { test, expect } from '@playwright/test';
 
 // iPhone 16 Pro / Chrome rendering checks for the radial bracket.
 test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
+  test('runs on an experimental Chrome (Canary / tip-of-tree, ≥150)', async ({ browser }) => {
+    const version = browser.version(); // e.g. "151.0.7886.0"
+    const major = Number(version.split('.')[0]);
+    expect(major, `browser version ${version}`).toBeGreaterThanOrEqual(150);
+  });
+
+
   test('emulates the device and renders the graph crisply', async ({ page }) => {
     const errors: string[] = [];
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

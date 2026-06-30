@@ -8,6 +8,7 @@
     "migrate": "wrangler d1 execute subagentjobs-dwh --remote --file migrations/0001_bracket.sql",
     "migrate:local": "wrangler d1 execute subagentjobs-dwh --local --file migrations/0001_bracket.sql",
     "preview": "node scripts/render-preview.mjs",
+    "install:canary": "playwright install chromium-tip-of-tree",
     "test:render": "npm run preview && playwright test"
   },
   "devDependencies": {

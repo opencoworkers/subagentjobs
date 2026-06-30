@@ -19,6 +19,8 @@ createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': 'text/html;charset=utf-8' });
     res.end(html);
   } catch (e) {
-    res.writeHead(500); res.end(String(e));
+    console.error('preview-server error:', e);
+    res.writeHead(500, { 'content-type': 'text/plain' });
+    res.end('internal error');
   }
 }).listen(PORT, () => console.log('preview server on http://127.0.0.1:' + PORT));

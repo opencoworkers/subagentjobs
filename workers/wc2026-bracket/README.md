@@ -87,6 +87,27 @@ make bracket-render-test     # or: npm run test:render
 
 Builds an offline preview (`scripts/render-preview.mjs`, esbuild-bundles the
 worker and calls the exported `page()`), serves it (`scripts/preview-server.mjs`),
-and drives it through **Chromium at emulated iPhone 16 Pro metrics**
-(`playwright.config.ts`) to assert: DPR-3 backing store, P3/desynchronized
-context, a non-blank painted canvas, the on-demand loop, and zero console errors.
+and drives it through **Chrome Canary at emulated iPhone 16 Pro metrics**
+(`playwright.config.ts`) to assert: an experimental engine (≥150), DPR-3 backing
+store, P3/desynchronized context, a non-blank painted canvas, the on-demand
+loop, and zero console errors.
+
+### Experimental browser (Chrome Canary)
+
+The render tests run on the **nightly Canary** channel so new-in-Chrome features
+(P3 canvas, Chrome 150 relative-color, …) are exercised on the build that ships
+them first.
+
+- **Linux / CI** (this container): Playwright's `chromium-tip-of-tree` *is*
+  "Chrome Canary for Testing" (currently **151.x**). Install once:
+  ```bash
+  npm run install:canary        # playwright install chromium-tip-of-tree
+  ```
+  `playwright.config.ts` auto-detects the installed build under
+  `$PLAYWRIGHT_BROWSERS_PATH`.
+- **macOS / Windows** dev machines: install Chrome Canary from
+  <https://www.google.com/chrome/canary/> and run with `PW_CHANNEL=chrome-canary`.
+
+Resolution order: `PW_CHROMIUM` (explicit path) → `PW_CHANNEL`
+(`chrome-canary` | `chrome-dev` | `chrome-beta` | `chrome`) → auto-detected
+tip-of-tree → the `chromium-tip-of-tree` channel.
