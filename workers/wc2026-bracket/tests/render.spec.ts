@@ -114,6 +114,35 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
     expect(tokens.focus).not.toBe(tokens.cyan);
   });
 
+  test('match detail dialog: focus moves in, Tab is trapped, Escape closes + restores focus', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => document.querySelectorAll('.node[data-id]').length > 0);
+
+    // Open via the keyboard path: focus the match node, press Enter.
+    await page.locator('.node[data-id="M04"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#detail')).toBeVisible();
+
+    // aria-modal dialog semantics.
+    expect(await page.locator('#detail').getAttribute('aria-modal')).toBe('true');
+    expect(await page.locator('#detail').getAttribute('role')).toBe('dialog');
+
+    // Focus moves into the dialog (onto the close button).
+    await page.waitForFunction(() => document.activeElement?.classList.contains('dclose') === true, { timeout: 5_000 });
+
+    // Tab is trapped — focus stays inside the dialog (single focusable → stays on close).
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.getElementById('detail')!.contains(document.activeElement))).toBe(true);
+    await page.keyboard.press('Shift+Tab');
+    expect(await page.evaluate(() => document.getElementById('detail')!.contains(document.activeElement))).toBe(true);
+
+    // Escape closes the dialog and restores focus to the originating match node.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#detail')).toBeHidden();
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-id'))).toBe('M04');
+    expect(await page.evaluate(() => location.hash)).toBe('');
+  });
+
   test('tab switch uses the View Transitions API without errors', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));
