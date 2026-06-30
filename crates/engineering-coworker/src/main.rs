@@ -56,6 +56,13 @@ struct Cli {
 
 // ── Tool inputs ────────────────────────────────────────────────────────────────
 
+/// Empty params for no-argument tools. `Parameters<()>` fails to deserialize the
+/// `arguments: {}` that standard MCP clients send for no-arg tool calls (serde's
+/// unit-type `Deserialize` impl rejects a JSON object), surfacing as a -32602
+/// "expected unit" error. An empty struct deserializes from `{}` cleanly.
+#[derive(Debug, Deserialize, JsonSchema)]
+struct NoArgs {}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 struct CargoCheckInput {
     /// Optional: single package name to check (e.g. "schema"). Omit for --workspace.
@@ -210,7 +217,7 @@ impl EngineeringCoworker {
 
     /// Show git status and the last 10 commits.
     #[tool(description = "Show `git status` + last 10 commits. Use to understand current dirty state before committing.")]
-    async fn git_status(&self, _input: Parameters<()>) -> String {
+    async fn git_status(&self, _input: Parameters<NoArgs>) -> String {
         let status = self.exec("git", &["status", "--short"], &[]).await;
         let log = self.exec("git", &["log", "--oneline", "-10"], &[]).await;
         format!("=== git status ===\n{status}\n\n=== last 10 commits ===\n{log}")

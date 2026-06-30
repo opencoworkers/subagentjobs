@@ -84,6 +84,13 @@ struct PublishFinalizeInput {
     gate_id: String,
 }
 
+/// Empty params for no-argument tools. `Parameters<()>` fails to deserialize the
+/// `arguments: {}` that standard MCP clients send for no-arg tool calls (serde's
+/// unit-type `Deserialize` impl rejects a JSON object), surfacing as a -32602
+/// "expected unit" error. An empty struct deserializes from `{}` cleanly.
+#[derive(Debug, Deserialize, JsonSchema)]
+struct NoArgs {}
+
 // ── Server ─────────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
@@ -111,7 +118,7 @@ impl DesignCoworker {
 impl DesignCoworker {
     /// Return the canonical 8-token design system as JSON.
     #[tool(description = "Get the canonical 8-token design system (bg, surface, accent, body, text, textDim, ink, line) as JSON.")]
-    async fn tokens_get(&self, _input: Parameters<()>) -> String {
+    async fn tokens_get(&self, _input: Parameters<NoArgs>) -> String {
         serde_json::to_string_pretty(&DesignTokens::canonical()).unwrap()
     }
 
