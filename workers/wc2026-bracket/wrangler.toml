@@ -1,22 +1,39 @@
-name = "wc2026-bracket"
+name = "subagentjobs-wc2026"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 
 # Repository: https://github.com/opencoworkers/subagentjobs
 # subagentdata.com — World Cup 2026 Round-of-32 radial bracket.
-# Fully KV-decomposed: the Worker is pure routing; page HTML + match
-# data live in KV so UI/score updates need no redeploy.
-#   KV key `html`    — full page HTML (~17KB)
-#   KV key `bracket` — match data JSON (~3.5KB)
-
-[[kv_namespaces]]
-binding = "KV"
-id = "ec5f7586f3c944c8bb83c211a12201ee"
+# Design system + storage match workers/web: D1-backed, server-rendered HTML,
+# terminal aesthetic. Match data lives in D1 `subagentjobs-dwh` (dim_team +
+# fact_match), so score updates are plain SQL — no redeploy.
 
 [vars]
 GITHUB_REPO = "opencoworkers/subagentjobs"
 
-# UPDATE_SECRET is a secret, set via: wrangler secret put UPDATE_SECRET
+# ── Data: D1 (shared warehouse, same binding name as workers/web) ────────────
+[[d1_databases]]
+binding = "DB"
+database_name = "subagentjobs-dwh"
+database_id = "305ed041-5dae-44e5-ab1f-8a63efd8627e"
+
+# ── Auth: Cloudflare Secrets Store (not a plaintext var) ─────────────────────
+# Bind a Secrets Store secret rather than `wrangler secret put`. Provision with:
+#   make bracket-secret      (creates store + WC2026_UPDATE_SECRET, prints ids)
+# then paste the printed store_id below. Access in code via:
+#   await env.UPDATE_SECRET.get()
+[[secrets_store_secrets]]
+binding = "UPDATE_SECRET"
+store_id = "REPLACE_WITH_SECRETS_STORE_ID"   # → make bracket-secret prints this
+secret_name = "WC2026_UPDATE_SECRET"
+
+# ── Observability + resource tagging ─────────────────────────────────────────
+# Resource tags (so the Worker, its D1 dataset and its secret are discoverable
+# as belonging to this project) are applied out-of-band via `make tag-resources`
+# / scripts/cf-tag-resources.sh, since wrangler.toml has no native tag field.
+# Tag value: github:opencoworkers/subagentjobs (see cloudflare.toml [meta].tag).
+[observability]
+enabled = true
 
 [[routes]]
 pattern = "subagentdata.com/*"

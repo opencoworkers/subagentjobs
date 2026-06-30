@@ -1,11 +1,12 @@
 {
-  "name": "wc2026-bracket",
+  "name": "subagentjobs-wc2026",
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "check": "tsc --noEmit",
-    "push:html": "wrangler kv key put --binding=KV html --path=assets/index.html"
+    "migrate": "wrangler d1 execute subagentjobs-dwh --remote --file migrations/0001_bracket.sql",
+    "migrate:local": "wrangler d1 execute subagentjobs-dwh --local --file migrations/0001_bracket.sql"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260620.1",

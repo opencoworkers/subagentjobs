@@ -1,58 +1,59 @@
-# wc2026-bracket — subagentdata.com
+# subagentjobs-wc2026 — subagentdata.com
 
-World Cup 2026 Round-of-32 **radial bracket** visualiser. Mobile-first,
-terminal aesthetic, Canvas 2D with optional WebGPU upgrade.
+World Cup 2026 Round-of-32 **radial bracket**, built to the same design system
+as `workers/web` (subagentjobs.com): TypeScript module Worker, **D1-backed**,
+**server-rendered HTML**, terminal aesthetic (`#0a0a0a` / `#51c4ff`), and an
+A2A agent card.
 
-## Architecture — fully KV-decomposed
+## Storage — Cloudflare D1 (not KV)
 
-The Worker (`src/index.ts`) is **pure routing**: it never embeds page HTML or
-match data. Everything lives in the `KV` namespace, so the UI and scores can be
-updated **with zero redeploys**.
+Match data lives in the shared `subagentjobs-dwh` D1 database as a Kimball star
+(`migrations/0001_bracket.sql`):
 
-| KV key    | Contents             | Approx size |
-| --------- | -------------------- | ----------- |
-| `html`    | Full page HTML       | ~17 KB      |
-| `bracket` | Match-data JSON      | ~3.5 KB     |
-| (script)  | Just routing logic   | ~2.6 KB     |
+| Table        | Grain                | Notes                                        |
+| ------------ | -------------------- | -------------------------------------------- |
+| `dim_team`   | one national team    | `team_code`, `name`, `flag`                  |
+| `fact_match` | one R32 match        | scores, status, winner, `r16_group`, prob    |
 
-The canonical copy of the page HTML lives in `assets/index.html` and is the
-source for the KV `html` key.
+The Worker JOINs `fact_match` to `dim_team` (home + away) and shapes rows for the
+page and the JSON API. Score updates are plain SQL `UPDATE`s — **no redeploy**.
+
+## Auth — Cloudflare Secrets Store
+
+`/api/update` is gated by `WC2026_UPDATE_SECRET`, bound from the **Secrets Store**
+(`[[secrets_store_secrets]]` in `wrangler.toml`), not a plaintext `[vars]` value.
+Code reads it with `await env.UPDATE_SECRET.get()`. Provision it with
+`make bracket-secret`, then paste the printed `store_id` into `wrangler.toml`.
+
+## Resource tagging
+
+Worker, D1 dataset, and secret are tagged `github:opencoworkers/subagentjobs`
+(from `cloudflare.toml` `[meta].tag`) via `make tag-resources` →
+`scripts/cf-tag-resources.sh`, so the deployment's resources are discoverable
+as a group. The new worker is also registered in `cloudflare.toml`.
 
 ## Routes
 
-| Route                 | Method | Description                                     |
-| --------------------- | ------ | ----------------------------------------------- |
-| `/`                   | GET    | Page HTML (from KV `html`)                      |
-| `/api/bracket`        | GET    | Raw bracket JSON (from KV `bracket`)            |
-| `/api/status`         | GET    | Summarised counts + final results              |
-| `/api/update`         | POST   | Replace bracket JSON — `Bearer $UPDATE_SECRET`  |
-| `/health`             | GET    | Liveness probe                                  |
+| Route                          | Method | Description                                  |
+| ------------------------------ | ------ | -------------------------------------------- |
+| `/`                            | GET    | Server-rendered bracket + matches page       |
+| `/api/bracket`                 | GET    | Bracket JSON (matches + r16 pairs + meta)    |
+| `/api/status`                  | GET    | Summary counts + final results               |
+| `/api/update`                  | POST   | Apply score/status deltas — `Bearer` secret  |
+| `/health`                      | GET    | Liveness probe                               |
+| `/.well-known/agent-card.json` | GET    | A2A agent card (`get_bracket` skill)         |
+| `/a2a`                         | POST   | A2A `tasks/send` → bracket data artifact     |
 
-`/api/status` returns e.g.:
-
-```json
-{ "updated": "...", "done": 3, "live": 1, "upcoming": 12, "total": 16,
-  "results": ["RSA 0-1 CAN W:CAN", "..."] }
-```
-
-## Deploy & update
+## Makefile (run from repo root)
 
 ```bash
-# Deploy the routing Worker
-wrangler deploy
-
-# Set the update secret (one-time)
-wrangler secret put UPDATE_SECRET
-
-# Update the page HTML (no redeploy needed)
-npm run push:html          # wrangler kv key put --binding=KV html --path=assets/index.html
-
-# Update scores (no redeploy needed)
-curl -X POST https://subagentdata.com/api/update \
-  -H "Authorization: Bearer $UPDATE_SECRET" \
-  -H "Content-Type: application/json" \
-  --data @bracket.json
+make migrate-bracket   # apply dim_team/fact_match + seed to D1
+make bracket-secret    # provision Secrets Store WC2026_UPDATE_SECRET (prints store_id)
+make deploy-bracket    # wrangler deploy
+make tag-resources     # tag Worker + D1 + secret with the repo tag
+make bracket-update    # update live scores via a `claude -p` subagent worker
 ```
 
-`/api/update` stamps `meta.updated`, `meta.stage`, `meta.final_date` and
-`meta.final_venue` automatically.
+`make bracket-update` runs a **`claude -p` subagent worker** that fetches the
+latest results, diffs them against `/api/bracket`, and POSTs only the changed
+matches to `/api/update` — the same agent-driven pattern as `make review` / `make pr`.

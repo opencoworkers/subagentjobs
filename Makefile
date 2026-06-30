@@ -46,6 +46,7 @@ endef
         qa simplify review commit pr clean-br setup \
         check test test-rust test-swift \
         deploy-web deploy-cron \
+        deploy-bracket migrate-bracket bracket-secret tag-resources bracket-update \
         buddy buddy-build \
         atomic toolchain \
         crawl-docs index-docs redis-start redis-stop \
@@ -72,6 +73,12 @@ help:
 	@printf "  $(CYAN)make test$(RESET)         cargo test + swift test\n"
 	@printf "  $(CYAN)make deploy-web$(RESET)   wrangler deploy workers/web\n"
 	@printf "  $(CYAN)make deploy-cron$(RESET)  wrangler deploy workers/cron\n"
+	@printf "\n  $(BOLD)wc2026 bracket (subagentdata.com)$(RESET)\n"
+	@printf "  $(CYAN)make deploy-bracket$(RESET)   wrangler deploy workers/wc2026-bracket\n"
+	@printf "  $(CYAN)make migrate-bracket$(RESET)  apply dim_team/fact_match to D1 subagentjobs-dwh\n"
+	@printf "  $(CYAN)make bracket-secret$(RESET)   provision Secrets Store WC2026_UPDATE_SECRET\n"
+	@printf "  $(CYAN)make tag-resources$(RESET)    tag CF Worker + D1 + secret with the repo tag\n"
+	@printf "  $(CYAN)make bracket-update$(RESET)   update live scores via claude -p subagent worker\n"
 	@printf "  $(CYAN)make buddy$(RESET)        build + launch BuddyApp (macOS)\n"
 	@printf "  $(CYAN)make atomic$(RESET)       scripts/commit-tested.sh (test-gated commits)\n"
 	@printf "  $(CYAN)make toolchain$(RESET)    install full toolchain (mac or linux)\n"
@@ -169,6 +176,52 @@ deploy-web:
 deploy-cron:
 	$(call log,Deploying workers/cron…)
 	cd "$(REPO)/workers/cron" && wrangler deploy 2>&1
+
+# ── wc2026 bracket worker (subagentdata.com) ─────────────────────────────────
+WC2026 := $(REPO)/workers/wc2026-bracket
+
+# Deploy the bracket worker. Requires the Secrets Store secret to exist and its
+# store_id pasted into workers/wc2026-bracket/wrangler.toml (see bracket-secret).
+deploy-bracket:
+	$(call log,Deploying workers/wc2026-bracket…)
+	cd "$(WC2026)" && wrangler deploy 2>&1
+
+# Apply the bracket D1 schema (dim_team + fact_match + seed) to subagentjobs-dwh.
+migrate-bracket:
+	$(call log,Applying wc2026 bracket migration to D1 subagentjobs-dwh…)
+	cd "$(WC2026)" && wrangler d1 execute subagentjobs-dwh --remote \
+	  --file migrations/0001_bracket.sql 2>&1
+
+# Provision the Cloudflare Secrets Store secret used to authenticate /api/update.
+# Creates the store if needed, writes WC2026_UPDATE_SECRET, prints the store_id
+# to paste into the worker's wrangler.toml [[secrets_store_secrets]].store_id.
+bracket-secret:
+	$(call log,Provisioning Secrets Store secret WC2026_UPDATE_SECRET…)
+	@cd "$(WC2026)" && wrangler secrets-store store create subagentjobs 2>/dev/null \
+	  || printf "$(CYAN)  → store 'subagentjobs' already exists$(RESET)\n"
+	@cd "$(WC2026)" && wrangler secrets-store secret create subagentjobs \
+	  --name WC2026_UPDATE_SECRET --scopes workers 2>&1 || true
+	@printf "$(YELLOW)  → paste the printed store_id into workers/wc2026-bracket/wrangler.toml$(RESET)\n"
+
+# Tag every Cloudflare resource for this deployment (Worker + D1 + secret) with
+# the repo tag from cloudflare.toml, so they are discoverable as a group.
+tag-resources:
+	$(call log,Tagging Cloudflare resources for the wc2026 deployment…)
+	@bash "$(REPO)/scripts/cf-tag-resources.sh"
+
+# Update live scores via a claude -p subagent worker. The subagent fetches the
+# latest WC2026 Round-of-32 results, diffs them against D1, and POSTs the deltas
+# to /api/update — no manual SQL, no redeploy.  (Same pattern as make review/pr.)
+bracket-update: _guard-claude
+	$(call log,Running bracket-updater subagent (claude -p)…)
+	@$(CLAUDE) -p "You are the wc2026 bracket updater. Fetch the latest FIFA World \
+	  Cup 2026 Round-of-32 results and fixtures. The live bracket API is at \
+	  https://subagentdata.com/api/bracket (current state) and \
+	  https://subagentdata.com/api/status (summary). For any match whose score or \
+	  status changed, build a JSON body {matches:[{id,status,home_score,away_score,\
+	  winner,note}]} using the M01..M16 match ids from /api/bracket, and POST it to \
+	  https://subagentdata.com/api/update with header 'Authorization: Bearer '\$$WC2026_UPDATE_SECRET. \
+	  Only include changed matches. Print a one-line summary of what you updated."
 
 # ── BuddyApp (macOS) ─────────────────────────────────────────────────────────
 
