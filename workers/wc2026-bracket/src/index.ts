@@ -404,12 +404,29 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
 .node.live .dot{animation:pdot 1.2s ease-in-out infinite}
 @keyframes pdot{0%,100%{opacity:1}50%{opacity:.45}}
 @media (prefers-reduced-motion:reduce){.node.live .dot{animation:none}}
+/* WCAG 1.4.1: status is not conveyed by colour alone. Live matches carry a static
+   halo ring (shape cue, survives reduced-motion); advanced/eliminated team crests
+   get a ✓/✕ glyph appended to the code (see buildSVG). */
+.node .livering{stroke:var(--red);stroke-width:.35;opacity:.9}
 /* focus+context match detail — CSS anchor positioning + @position-try */
 #detail{display:block;position:fixed;margin:0;border:1px solid var(--line2);background:#0e0e0eee;color:var(--txt);
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:12px;padding:12px 14px;width:min(280px,86vw);z-index:6;
-  position-anchor:--sel;top:anchor(bottom);left:anchor(center);translate:-50% 8px;inset:auto;
+  position-anchor:--sel;inset:auto;top:anchor(bottom);left:anchor(center);translate:-50% 8px;
   position-try-fallbacks:flip-block,flip-inline,flip-block flip-inline}
 @supports not (anchor-name:--x){#detail{left:50%;bottom:14px;top:auto;translate:-50% 0}}
+/* Graceful degradation: anchor positioning resolves popover-vs-edge, but on a narrow
+   phone (≤420px — the iPhone 16 Pro is 402px) a full-width bottom sheet is the robust,
+   never-clipped pattern, and the same fixed sheet is the fallback where anchor
+   positioning is unsupported. View Transitions stay feature-detected in JS. */
+@media (max-width:420px){
+  #detail{position:fixed;inset:auto 0 0 0;top:auto;width:100%;max-width:none;translate:none;
+    position-anchor:auto;position-try-fallbacks:none;
+    border-radius:14px 14px 0 0;border-left:0;border-right:0;border-bottom:0;
+    padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+  /* The full-width sheet would otherwise cover the bottom-right zoom cluster and eat its
+     taps; while it's open, float the controls to the top so they stay reachable. */
+  #graph-wrap:has(#detail:not([hidden])) .zc{top:8px;bottom:auto}
+}
 #detail[hidden]{display:none}
 #detail .dh{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.08em;color:var(--mut);text-transform:uppercase;margin-bottom:8px}
 #detail .dlive{color:var(--red)}
@@ -430,7 +447,9 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
 .zc button:hover,.zc button:active{border-color:var(--cyan);color:var(--txt-hi)}
 .legend{display:flex;flex-wrap:wrap;gap:8px 14px;padding:10px 2px;font-size:9px;
   letter-spacing:.5px;color:var(--mut);text-transform:uppercase}
-.leg{display:flex;align-items:center;gap:5px}.leg i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.leg{display:flex;align-items:center;gap:5px}.leg i{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+.leg .lgm{font-size:10px;line-height:1;font-weight:700;margin-right:1px}
+.leg i.lgring{box-shadow:0 0 0 1px var(--bg),0 0 0 2px var(--red);box-shadow:0 0 0 1px var(--bg),0 0 0 2px rgb(from var(--red) r g b / .85)}
 /* match cards */
 .mcard{border:1px solid var(--line);background:var(--panel);padding:10px 12px;margin-bottom:8px;position:relative;
   content-visibility:auto;contain-intrinsic-size:auto 84px}
@@ -446,6 +465,7 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
 .mteam .sc .pk{font-size:10px;font-weight:400;color:var(--mut);margin-left:1px;vertical-align:1px}
 .mteam.won .nm{color:var(--cyan);font-weight:600}
 .mteam.lost .nm{color:var(--mut)}
+.mteam .wmark{color:var(--green);font-weight:700;margin-left:5px;font-size:11px}
 .msep{height:1px;background:var(--line);margin:2px 0}
 .pbar{height:2px;background:var(--line);margin-top:9px;overflow:hidden}
 .pfill{height:100%;background:var(--cyan);opacity:.6}
@@ -479,13 +499,15 @@ export function page(matches: ShapedMatch[]): string {
       ? `<div class=pbar><div class=pfill style="width:${Math.round(m.p.h)}%"></div></div>` : '';
     const meta = lv ? '<span style="color:#f47067">live</span>'
       : `<span>${esc(m.venue || '')}</span>`;
+    const hMk = hWon ? '<span class=wmark>✓</span>' : '';
+    const aMk = aWon ? '<span class=wmark>✓</span>' : '';
     return `<div class="mcard${fin ? ' final' : lv ? ' live' : ''}" id="card-${esc(m.id)}">${pip}${note}` +
       `<div class=mmeta><span>${esc(m.id)} · ${esc(m.date || '')}</span>${meta}</div>` +
       `<div class="mteam${hWon ? ' won' : hLost ? ' lost' : ''}"><span class=fl>${m.home.f}</span>` +
-        `<span class=nm>${esc(m.home.n)}</span>${hs}</div>` +
+        `<span class=nm>${esc(m.home.n)}${hMk}</span>${hs}</div>` +
       `<div class=msep></div>` +
       `<div class="mteam${aWon ? ' won' : aLost ? ' lost' : ''}"><span class=fl>${m.away.f}</span>` +
-        `<span class=nm>${esc(m.away.n)}</span>${as}</div>${prob}</div>`;
+        `<span class=nm>${esc(m.away.n)}${aMk}</span>${as}</div>${prob}</div>`;
   }).join('');
 
   // Client JS — array of strings, no nested template literals (workers/web style).
@@ -535,16 +557,17 @@ export function page(matches: ShapedMatch[]): string {
     '    LK.appendChild(svel("path",{"class":"lk",d:"M"+pb[0]+" "+pb[1]+"Q"+pm[0]+" "+pm[1]+" "+pa[0]+" "+pa[1],stroke:lcol(b.st),"stroke-width":b.k==="team"?0.5:0.7}));});',
     '  N.forEach(function(g){var p=P(g.ang,g.r);',
     '    if(g.k==="final"){var tr=svel("text",{"class":"trophy",x:50,y:50});tr.textContent="\\uD83C\\uDFC6";ND.appendChild(tr);return;}',
-    '    if(g.k==="team"){var gg=svel("g",{"class":"tm"});',
+    '    if(g.k==="team"){var gg=svel("g",{"class":"tm","aria-hidden":"true"});',
     '      var fl=svel("text",{"class":"crest",x:p[0],y:p[1]});fl.textContent=g.flag;gg.appendChild(fl);',
     '      var d=Math.hypot(p[0]-50,p[1]-50)||1,ux=(p[0]-50)/d,uy=(p[1]-50)/d;',
-    '      var cd=svel("text",{"class":"code",x:p[0]+ux*3.4,y:p[1]+uy*3.4,fill:g.st==="adv"?"#7bd88f":g.st==="elim"?"#333":"#8a8a8a"});cd.textContent=g.code;gg.appendChild(cd);',
+    '      var cd=svel("text",{"class":"code st-"+g.st,x:p[0]+ux*3.4,y:p[1]+uy*3.4,fill:g.st==="adv"?"#7bd88f":g.st==="elim"?"#8c8c8c":"#8a8a8a"});cd.textContent=g.code+(g.st==="adv"?" \\u2713":g.st==="elim"?" \\u2715":"");gg.appendChild(cd);',
     '      ND.appendChild(gg);return;}',
     '    var rad=g.k==="match"?(g.live?2.2:g.st==="adv"?2:1.6):g.k==="r16"?0.9:0.7;',
     '    var node=svel("g",{"class":"node"+(g.live?" live":"")});',
     '    if(g.mid){node.setAttribute("data-id",g.mid);node.setAttribute("tabindex","-1");node.setAttribute("role","button");}',
     '    node.appendChild(svel("circle",{"class":"hit",cx:p[0],cy:p[1],r:5.2}));',
     '    node.appendChild(svel("circle",{"class":"foc",cx:p[0],cy:p[1],r:rad+1.5,"stroke-width":Math.max(0.5,rad*0.2)}));',
+    '    if(g.k==="match"&&g.live){node.appendChild(svel("circle",{"class":"livering",cx:p[0],cy:p[1],r:rad+0.9,fill:"none"}));}',
     '    node.appendChild(svel("circle",{"class":"dot",cx:p[0],cy:p[1],r:rad,fill:fillc(g.st),stroke:col(g.st)}));',
     '    if(g.k==="match"&&g.score){var sc=svel("text",{"class":"sc"+(g.score.indexOf("(")>=0?" pk":""),x:p[0],y:p[1],fill:g.live?"#f47067":"#51c4ff"});sc.textContent=g.score;node.appendChild(sc);}',
     '    if(g.mid){var m=mById(g.mid),lab=m?mLabel(m):g.mid;',
@@ -683,9 +706,9 @@ ${sharedCss()}
     </div>
     <div class=legend>
       <span class=leg><i style="background:#51c4ff"></i>upcoming</span>
-      <span class=leg><i style="background:#7bd88f"></i>advanced</span>
-      <span class=leg><i style="background:#f47067"></i>live</span>
-      <span class=leg><i style="background:#3a3a3a"></i>eliminated</span>
+      <span class=leg><i style="background:#7bd88f"></i><b class=lgm>✓</b>advanced</span>
+      <span class=leg><i class=lgring style="background:#f47067"></i>live</span>
+      <span class=leg><i style="background:#777"></i><b class=lgm style="text-decoration:line-through">✕</b>eliminated</span>
     </div>
     <ul class=sr id=srlist aria-label="all matches"></ul>
     <div class=sr id=sr-updates aria-live=polite aria-atomic=true></div>

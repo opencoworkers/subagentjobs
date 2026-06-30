@@ -238,6 +238,78 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
     await page.waitForFunction(() => / versus /.test(document.getElementById('sr-updates')?.textContent || ''));
   });
 
+  test('status is conveyed without colour alone (WCAG 1.4.1): glyphs, live ring, legend', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => document.querySelectorAll('.node[data-id]').length > 0);
+
+    // Advanced / eliminated team crests carry a ✓ / ✕ glyph (not colour alone).
+    const codes = await page.evaluate(() => ({
+      adv: Array.from(document.querySelectorAll('.code.st-adv')).map((e) => e.textContent || ''),
+      elim: Array.from(document.querySelectorAll('.code.st-elim')).map((e) => e.textContent || ''),
+    }));
+    expect(codes.adv.length).toBe(6); // 6 finals → 6 advancing teams
+    expect(codes.elim.length).toBe(6);
+    expect(codes.adv.every((t) => t.includes('✓'))).toBe(true);
+    expect(codes.elim.every((t) => t.includes('✕'))).toBe(true);
+
+    // Live matches carry a static halo ring — a shape cue that survives reduced-motion.
+    expect(await page.locator('.livering').count()).toBe(2); // M07, M08
+
+    // The legend teaches the non-colour cues.
+    const legendText = await page.evaluate(() => document.querySelector('.legend')?.textContent || '');
+    expect(legendText).toContain('✓');
+    expect(legendText).toContain('✕');
+
+    // Match cards mark the winner with ✓ (6 finals → 6 winners), color-independently.
+    expect(await page.locator('.wmark').count()).toBe(6);
+
+    // The crest glyphs are a purely visual cue — the crest layer is aria-hidden so a
+    // screen reader doesn't read "check mark"/"x" per team (status is on the node labels).
+    const crestsHidden = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.tm')).every((g) => g.getAttribute('aria-hidden') === 'true'),
+    );
+    expect(crestsHidden).toBe(true);
+  });
+
+  test('zoom controls stay tappable while the bottom sheet is open (not occluded)', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(
+      () => typeof (window as any).zoomAt === 'function' && document.querySelectorAll('.node[data-id]').length > 0,
+    );
+    // Open a tall card (a live match) — the worst case for the sheet covering the controls.
+    await page.locator('.node[data-id="M07"]').dispatchEvent('click');
+    await expect(page.locator('#detail')).toBeVisible();
+    const z0 = await page.evaluate(() => (window as any).Z);
+    // A REAL actionability-checked click (not .focus()/dispatchEvent) must reach the button;
+    // if the sheet covered it, Playwright would time out on pointer interception.
+    await page.locator('.zc button[data-z="in"]').click({ timeout: 4000 });
+    expect(await page.evaluate(() => (window as any).Z)).toBeGreaterThan(z0);
+  });
+
+  test('detail card degrades to a full-width bottom sheet on a ≤420px phone', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => document.querySelectorAll('.node[data-id]').length > 0);
+    await page.locator('.node[data-id="M07"]').dispatchEvent('click');
+    await expect(page.locator('#detail')).toBeVisible();
+    // On a ≤420px phone the card is no longer an anchored popover (which can clip at the
+    // edge) but a sheet pinned to the bottom of the graph panel, spanning its full width.
+    const geo = await page.evaluate(() => {
+      const d = document.getElementById('detail')!.getBoundingClientRect();
+      const w = document.getElementById('graph-wrap')!.getBoundingClientRect();
+      return {
+        vw: window.innerWidth,
+        dxOff: Math.abs(d.left - w.left),
+        widthOff: Math.abs(d.width - w.width),
+        bottomOff: Math.abs(d.bottom - w.bottom),
+      };
+    });
+    expect(geo.vw).toBeLessThanOrEqual(420); // iPhone 16 Pro is 402
+    // Within the panel's 1px border on each side (sheet spans the content box).
+    expect(geo.dxOff).toBeLessThanOrEqual(2);     // flush to the panel's left edge
+    expect(geo.widthOff).toBeLessThanOrEqual(2);  // full panel width (never clips)
+    expect(geo.bottomOff).toBeLessThanOrEqual(2); // sat on the panel's bottom edge
+  });
+
   test('tab switch uses the View Transitions API without errors', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));
