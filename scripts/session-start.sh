@@ -41,9 +41,10 @@ echo "✓ session-start: env vars exported (CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_AC
 # ── Task bootstrap ─────────────────────────────────────────────────────────────
 # Upsert pending tasks from sessions/tasks.yaml into Postgres fact_tasks.
 # Only runs when DATABASE_URL is set (skips gracefully in local sessions without Postgres).
+BOOTSTRAP="$REPO/target/debug/task-bootstrap"
 if [ -f "$REPO/sessions/tasks.yaml" ] && [ -n "${DATABASE_URL:-}" ]; then
-  if cargo build -p task-bootstrap --quiet 2>/dev/null; then
-    "$REPO/target/debug/task-bootstrap" \
+  if [ -x "$BOOTSTRAP" ] || cargo build -p task-bootstrap --quiet 2>/dev/null; then
+    "$BOOTSTRAP" \
       --tasks "$REPO/sessions/tasks.yaml" \
       --database-url "$DATABASE_URL" \
       2>&1 || true

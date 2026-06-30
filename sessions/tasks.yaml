@@ -1,4 +1,3 @@
-$schema: "../schemas/task-session.schema.json"
 session: subagentjobs-main
 schema_version: "0.1.0"
 
