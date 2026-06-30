@@ -9,6 +9,11 @@ on:
   pull_request:
     paths: ['workers/wc2026-bracket/**', '.github/workflows/wc2026.yml']
 
+# Least-privilege GITHUB_TOKEN: this workflow only reads the repo (Cloudflare
+# auth comes from CLOUDFLARE_API_TOKEN, not GITHUB_TOKEN).
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: workers/wc2026-bracket
