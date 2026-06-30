@@ -296,11 +296,33 @@ export default {
     return new Response(page(matches), { headers: { 'content-type': 'text/html;charset=utf-8' } });
   },
 
-  // ── Autonomous score ingestion (Cron Trigger) ──────────────────────────────
-  // No human, no secret: fetch the agent-published SCORES_SOURCE_URL and apply
-  // its {matches:[delta]} to D1. A no-op when the var is unset, so the cron is
-  // safe to ship before a source exists.
+  // ── Deterministic kickoff flip (Cron Trigger) ──────────────────────────────
+  // Every tick, flip any match whose real-world kickoff has passed from
+  // 'scheduled' to 'in_progress' using kickoff_utc (migration 0006). This is
+  // independent of SCORES_SOURCE_URL below -- it only knows *that* a match
+  // has started, not the score or when it ends. A real feed or an agent/human
+  // POST to /api/update is still what supplies scores and the final result.
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    const now = new Date().toISOString();
+    ctx.waitUntil(
+      env.DB.prepare(
+        `UPDATE fact_match
+            SET status = 'in_progress', updated_at = ?
+          WHERE status = 'scheduled'
+            AND kickoff_utc IS NOT NULL
+            AND kickoff_utc <= ?`
+      )
+        .bind(now, now)
+        .run()
+        .catch(() => {
+          /* transient D1 error — next tick (10 min later) retries */
+        })
+    );
+
+    // ── Autonomous score ingestion ────────────────────────────────────────────
+    // No human, no secret: fetch the agent-published SCORES_SOURCE_URL and apply
+    // its {matches:[delta]} to D1. A no-op when the var is unset, so the cron is
+    // safe to ship before a source exists.
     const src = env.SCORES_SOURCE_URL;
     if (!src) return;
     ctx.waitUntil(
