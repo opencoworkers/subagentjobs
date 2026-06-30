@@ -1,0 +1,23 @@
+name = "wc2026-bracket"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# Repository: https://github.com/opencoworkers/subagentjobs
+# subagentdata.com — World Cup 2026 Round-of-32 radial bracket.
+# Fully KV-decomposed: the Worker is pure routing; page HTML + match
+# data live in KV so UI/score updates need no redeploy.
+#   KV key `html`    — full page HTML (~17KB)
+#   KV key `bracket` — match data JSON (~3.5KB)
+
+[[kv_namespaces]]
+binding = "KV"
+id = "ec5f7586f3c944c8bb83c211a12201ee"
+
+[vars]
+GITHUB_REPO = "opencoworkers/subagentjobs"
+
+# UPDATE_SECRET is a secret, set via: wrangler secret put UPDATE_SECRET
+
+[[routes]]
+pattern = "subagentdata.com/*"
+zone_name = "subagentdata.com"

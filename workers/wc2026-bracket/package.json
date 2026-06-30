@@ -1,0 +1,15 @@
+{
+  "name": "wc2026-bracket",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "tsc --noEmit",
+    "push:html": "wrangler kv key put --binding=KV html --path=assets/index.html"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260620.1",
+    "typescript": "^5",
+    "wrangler": "^3"
+  }
+}
