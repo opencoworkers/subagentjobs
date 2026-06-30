@@ -398,7 +398,7 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
 .node .dot{stroke-width:.3}
 .node .foc{fill:none;stroke:none}
 .node:focus{outline:none}
-.node:focus .foc,.node[data-sel] .foc{stroke:var(--focus)}
+.node:focus-visible .foc,.node[data-sel] .foc{stroke:var(--focus)}
 .node .sc{font-family:ui-monospace,monospace;font-weight:600;font-size:2.1px;text-anchor:middle;dominant-baseline:central}
 .node .sc.pk{font-size:1.7px}
 .node.live .dot{animation:pdot 1.2s ease-in-out infinite}
@@ -503,7 +503,7 @@ export function page(matches: ShapedMatch[]): string {
     // zoom/DPR, native tap targets + :focus, screen-reader text. The d3 symmetric
     // tree (DATA.graph) maps to SVG; pan/zoom transform one camera <g>, so nodes
     // stay addressable. P(ang,r) projects into the 0..100 viewBox.
-    'var DATA=null,Z=1,px=0,py=0,LT=null,LD=null,LC=null,PINCH=false,MINZ=0.6,MAXZ=6,easeRAF=0,selId=null;',
+    'var DATA=null,Z=1,px=0,py=0,LT=null,LD=null,LC=null,PINCH=false,MINZ=0.6,MAXZ=6,easeRAF=0,selId=null,lastFocus=null;',
     'var RM=(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)||false;',
     'var SVGNS="http://www.w3.org/2000/svg";',
     'function svel(n,at){var e=document.createElementNS(SVGNS,n);for(var k in at)e.setAttribute(k,at[k]);return e;}',
@@ -523,7 +523,7 @@ export function page(matches: ShapedMatch[]): string {
     '}',
     'function loadGraph(){',
     '  fetch("/api/bracket").then(function(r){return r.json();}).then(function(d){',
-    '    DATA=d;buildSVG();if(/^#M\\d\\d$/.test(location.hash))selectMatch(location.hash.slice(1));',
+    '    DATA=d;buildSVG();if(/^#M\\d\\d$/.test(location.hash))selectMatch(location.hash.slice(1),false);',
     '  });',
     '}',
     'function buildSVG(){',
@@ -557,11 +557,11 @@ export function page(matches: ShapedMatch[]): string {
     '  applyCam();',
     '}',
     'function fmtSc(v,pk){return v==null?"\\u2013":v+(pk!=null?"<span class=p>("+pk+")</span>":"");}',
-    'function selectMatch(id){if(document.startViewTransition&&!RM)document.startViewTransition(function(){doSelect(id);});else doSelect(id);}',
-    'function doSelect(id){var m=mById(id);if(!m)return;',
+    'function selectMatch(id,ui){if(document.startViewTransition&&!RM)document.startViewTransition(function(){doSelect(id,ui);});else doSelect(id,ui);}',
+    'function doSelect(id,ui){var m=mById(id);if(!m)return;',
     '  var prev=document.querySelector(".node[data-sel]");if(prev){prev.removeAttribute("data-sel");prev.style.removeProperty("anchor-name");}',
     '  var node=document.querySelector(".node[data-id="+id+"]");',
-    '  if(node){node.setAttribute("data-sel","");node.style.setProperty("anchor-name","--sel");}selId=id;',
+    '  if(node){node.setAttribute("data-sel","");node.style.setProperty("anchor-name","--sel");}selId=id;lastFocus=node||document.activeElement;',
     '  var d=document.getElementById("detail"),fin=m.status==="final",hW=fin&&m.w===m.home.c,aW=fin&&m.w===m.away.c;',
     '  d.innerHTML="<button class=dclose aria-label=close>\\u00d7</button>"+',
     '    "<div class=dh><span>"+m.id+" \\u00b7 "+(m.date||"")+"</span><span>"+(m.status==="in_progress"?"<b class=dlive>live</b>":(m.venue||""))+"</span></div>"+',
@@ -569,11 +569,12 @@ export function page(matches: ShapedMatch[]): string {
     '    "<div class=dsep></div>"+',
     '    "<div class=drow data-s="+(aW?"won":fin?"lost":"none")+"><span class=fl>"+m.away.f+"</span><span class=nm>"+m.away.n+"</span><span class=dsc>"+fmtSc(m.s?m.s.a:null,m.pk?m.pk.a:null)+"</span></div>"+',
     '    (m.note?"<div class=dnote>"+m.note+"</div>":"");',
-    '  d.querySelector(".dclose").addEventListener("click",deselect);d.hidden=false;',
+    '  var cb=d.querySelector(".dclose");cb.addEventListener("click",deselect);d.hidden=false;if(ui!==false)cb.focus();',
     '  if(location.hash!=="#"+id)history.replaceState(null,"","#"+id);',
     '}',
     'function deselect(){var p=document.querySelector(".node[data-sel]");if(p){p.removeAttribute("data-sel");p.style.removeProperty("anchor-name");}',
-    '  var d=document.getElementById("detail");if(d)d.hidden=true;selId=null;if(location.hash)history.replaceState(null,"",location.pathname);}',
+    '  var d=document.getElementById("detail");if(d)d.hidden=true;selId=null;if(location.hash)history.replaceState(null,"",location.pathname);',
+    '  if(lastFocus&&lastFocus.focus){lastFocus.focus();}lastFocus=null;}',
     'function applyCam(){var c=document.getElementById("cam");if(c)c.setAttribute("transform","translate("+px+" "+py+") scale("+Z+")");}',
     'function clampZ(z){return Math.min(MAXZ,Math.max(MINZ,z));}',
     'function zoomAt(fx,fy,f){var nz=clampZ(Z*f),k=nz/Z;px=fx-k*(fx-px);py=fy-k*(fy-py);Z=nz;applyCam();}',
@@ -597,6 +598,18 @@ export function page(matches: ShapedMatch[]): string {
     '  var svg=document.getElementById("svg");if(svg)svg.addEventListener("click",function(e){var t=e.target;if(t===svg||t.id==="cam"||(t.getAttribute&&(""+t.getAttribute("class")).indexOf("ring")>=0))deselect();});',
     '  document.querySelectorAll("[data-z]").forEach(function(b){b.addEventListener("click",function(ev){ev.stopPropagation();',
     '    if(b.dataset.z==="in")zoomAt(50,50,1.4);else if(b.dataset.z==="out")zoomAt(50,50,1/1.4);else resetView();});});',
+    // Non-modal detail-card keyboard model. Escape is bound at the document level and
+    // guarded on "card open", so it closes from anywhere on the page (the card is not a
+    // native modal and the background stays interactive — a #detail-scoped handler would
+    // go dead the moment focus moved to a zoom/nav control). Tab cycles within the card
+    // only while focus is already inside it; otherwise Tab flows normally (non-modal).
+    '  document.addEventListener("keydown",function(e){var dlg=document.getElementById("detail");if(!dlg||dlg.hidden)return;',
+    '    if(e.key==="Escape"){e.preventDefault();deselect();return;}',
+    '    if(e.key==="Tab"&&dlg.contains(document.activeElement)){var f=dlg.querySelectorAll("button, a[href], input, select, textarea");if(!f.length)return;',
+    '      var first=f[0],last=f[f.length-1];',
+    '      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}',
+    '      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}',
+    '  });',
     '}',
     'interact();loadGraph();',
   ].join('\n');
@@ -643,7 +656,7 @@ ${sharedCss()}
         <button data-z=out aria-label="zoom out">−</button>
         <button data-z=reset aria-label="reset view">⤢</button>
       </div>
-      <dialog id=detail aria-label="match detail" hidden></dialog>
+      <dialog id=detail role=dialog aria-label="match detail" hidden></dialog>
     </div>
     <div class=legend>
       <span class=leg><i style="background:#51c4ff"></i>upcoming</span>

@@ -114,6 +114,61 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
     expect(tokens.focus).not.toBe(tokens.cyan);
   });
 
+  test('match detail dialog: focus moves in, Tab is trapped, Escape closes + restores focus', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => document.querySelectorAll('.node[data-id]').length > 0);
+
+    // Open via the keyboard path: focus the match node, press Enter.
+    await page.locator('.node[data-id="M04"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#detail')).toBeVisible();
+
+    // Non-modal disclosure: a labelled role=dialog, but NOT aria-modal (the background
+    // stays interactive, so claiming modality would mislead assistive tech).
+    expect(await page.locator('#detail').getAttribute('role')).toBe('dialog');
+    expect(await page.locator('#detail').getAttribute('aria-modal')).toBeNull();
+    expect(await page.locator('#detail').getAttribute('aria-label')).toBeTruthy();
+
+    // Focus moves into the dialog (onto the close button) on user-initiated open.
+    await page.waitForFunction(() => document.activeElement?.classList.contains('dclose') === true, { timeout: 5_000 });
+
+    // Tab is trapped while focus is inside — focus stays in the dialog (single focusable).
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.getElementById('detail')!.contains(document.activeElement))).toBe(true);
+    await page.keyboard.press('Shift+Tab');
+    expect(await page.evaluate(() => document.getElementById('detail')!.contains(document.activeElement))).toBe(true);
+
+    // Escape closes the dialog and restores focus to the originating match node.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#detail')).toBeHidden();
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-id'))).toBe('M04');
+    expect(await page.evaluate(() => location.hash)).toBe('');
+  });
+
+  test('Escape closes the detail card even when focus has moved to a background control', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => document.querySelectorAll('.node[data-id]').length > 0);
+
+    // Open the card, then move focus OUT of it onto a zoom button (the background stays
+    // interactive for a non-modal card). A #detail-scoped Escape handler would go dead here.
+    await page.locator('.node[data-id="M04"]').dispatchEvent('click');
+    await expect(page.locator('#detail')).toBeVisible();
+    await page.locator('.zc button[data-z="in"]').focus();
+    expect(await page.evaluate(() => document.getElementById('detail')!.contains(document.activeElement))).toBe(false);
+
+    // Escape from the document still closes the card.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#detail')).toBeHidden();
+  });
+
+  test('deep-link load opens the detail card WITHOUT stealing focus into it', async ({ page }) => {
+    await page.goto('/#M07');
+    await page.waitForFunction(() => document.querySelector('.node[data-sel]') !== null, { timeout: 10_000 });
+    await expect(page.locator('#detail')).toBeVisible();
+    // No user gesture occurred, so focus must not be yanked into the modal on load.
+    expect(await page.evaluate(() => document.activeElement?.classList.contains('dclose') === true)).toBe(false);
+  });
+
   test('tab switch uses the View Transitions API without errors', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));
