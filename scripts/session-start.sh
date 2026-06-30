@@ -19,6 +19,37 @@ export CLOUDFLARE_D1_DATABASE_NAME="subagentjobs-dwh"
 # ── Redis ─────────────────────────────────────────────────────────────────────
 export REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
 
+# Cloud sessions ship Redis pre-installed but stopped — start it so the
+# docs-crawler + durable-store L2 tier are reachable without manual setup.
+if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] && ! redis-cli ping >/dev/null 2>&1; then
+  service redis-server start >/dev/null 2>&1 || true
+fi
+
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+# The Cloudflare remote-exec container ships PostgreSQL (16) pre-installed but
+# stopped. Start it and provision the local database so durable-task tooling
+# (task-bootstrap, indexer, migrations) works with no externally-supplied
+# DATABASE_URL — the container IS the Postgres host.
+if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
+  service postgresql start >/dev/null 2>&1 || true
+  # Wait briefly for the socket, then provision idempotently.
+  for _ in 1 2 3 4 5; do pg_isready -q && break; sleep 1; done
+  sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='subagentjobs'" 2>/dev/null | grep -q 1 \
+    || sudo -u postgres psql -c "CREATE DATABASE subagentjobs;" >/dev/null 2>&1 || true
+  sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='subagentjobs'" 2>/dev/null | grep -q 1 \
+    || sudo -u postgres psql -c "CREATE USER subagentjobs WITH PASSWORD 'subagentjobs';" >/dev/null 2>&1 || true
+  sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE subagentjobs TO subagentjobs;" >/dev/null 2>&1 || true
+  sudo -u postgres psql -c "ALTER DATABASE subagentjobs OWNER TO subagentjobs;" >/dev/null 2>&1 || true
+  export DATABASE_URL="${DATABASE_URL:-postgresql://subagentjobs:subagentjobs@localhost/subagentjobs}"
+fi
+
+# Apply pending Postgres migrations so the schema exists before task-bootstrap.
+if [ -n "${DATABASE_URL:-}" ] && command -v psql >/dev/null 2>&1; then
+  for sql in "$REPO"/crates/durable-store/migrations/postgres/*.sql; do
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$sql" >/dev/null 2>&1 || true
+  done
+fi
+
 # ── LRU cache ─────────────────────────────────────────────────────────────────
 export LRU_CAPACITY="${LRU_CAPACITY:-512}"
 export MDX_CACHE_FILE="$REPO/crates/docs-crawler/.cache/mdx-lru.json"

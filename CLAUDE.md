@@ -1,5 +1,13 @@
 # subagentjobs — Claude Code context
 
+## Pinned tooling
+- Claude Code CLI: **@anthropic-ai/claude-code@2.1.195** (latest as of 2026-06-30).
+  Upgrade with `npm install -g @anthropic-ai/claude-code@2.1.195`. Also exported as
+  `CLAUDE_CODE_VERSION` by `scripts/setup.sh`.
+- Postgres **16** + Redis **7.0** are pre-installed in the Cloudflare remote-exec
+  container and auto-started by `scripts/session-start.sh` (no manual `DATABASE_URL`
+  needed — the container is the Postgres host: `postgresql://subagentjobs:subagentjobs@localhost/subagentjobs`).
+
 ## Key commands
 ```
 # Rust

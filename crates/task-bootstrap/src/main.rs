@@ -44,7 +44,9 @@ struct YamlTask {
     kind: YamlKind,
 }
 
-/// External-tagged kind for human-friendly YAML (`kind: todo` or `kind: {migration: {file: ...}}`).
+/// External-tagged kind for human-friendly YAML. serde_yaml renders enum variants
+/// as YAML tags, so unit variants are bare strings (`kind: todo`) and struct
+/// variants use a `!` tag (`kind: !migration { file: ... }`).
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum YamlKind {

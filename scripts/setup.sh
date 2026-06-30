@@ -10,10 +10,15 @@
 # all pending migrations.
 #
 # Local use: `source scripts/setup.sh` to export env vars.
+#
+# Pinned tooling (keep in sync with CLAUDE.md):
+#   Claude Code CLI — @anthropic-ai/claude-code@2.1.195 (latest as of 2026-06-30)
+#   Install/upgrade: npm install -g @anthropic-ai/claude-code@2.1.195
 
 set -euo pipefail
 
 REPO="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+export CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.195}"
 
 # ── Cloudflare (from wrangler.toml + wrangler-account.json) ──────────────────
 export CLOUDFLARE_ACCOUNT_ID="e6294e3ea89f8207af387d459824aaae"
