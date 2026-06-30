@@ -13,7 +13,7 @@ behind operator approval surfaced on the buddy device.
 |---|---|---|
 | `commands/design.md` | Slash command | `/design [get\|lint\|build <name>\|publish <name>]` |
 | `skills/design-playbook/` | Skill | The role's how-to (tokens → pack → gated publish) |
-| `agents/design-coworker.yaml` | Agent | Generated from `crates/agent-gen` (least-privilege) |
+| `agents/design-coworker.md` | Agent | Markdown agent (frontmatter), mirrors the typed `crates/agent-gen` definition |
 | `mcp/servers.json` | MCP config | Wires the `design-coworker` MCP binary |
 | `gates.toml` | Gate policy | `artifact_publish` requires operator approval on the buddy |
 

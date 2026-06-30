@@ -132,6 +132,9 @@ public final class HardwareBuddyLink: NSObject {
     public func sendFolder(_ directory: URL, name: String? = nil) {
         do {
             let cmds = try FolderPush.commands(for: directory, name: name)
+            // Drop any push frames still queued from a previous transfer so the
+            // progress counter reflects only this push.
+            outbox.removeAll { $0.isPush }
             pushProgress = (0, cmds.count)
             for cmd in cmds { enqueue(cmd, isPush: true) }
         } catch {
