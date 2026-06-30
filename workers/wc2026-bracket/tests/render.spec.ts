@@ -218,13 +218,24 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
     await page.keyboard.press('End');
     expect(await page.evaluate(() => document.activeElement?.getAttribute('data-id'))).toBe(order[15]);
 
-    // A polite aria-live region announces the focused match.
-    const liveRegion = await page.evaluate(() => {
+    // Per-move feedback is the focused node's COMPLETE aria-label (matchup + status),
+    // announced natively — not a duplicate live-region echo (APG roving-tabindex).
+    const label = await page.evaluate(() => document.activeElement?.getAttribute('aria-label') || '');
+    expect(label).toMatch(/ versus /);
+
+    // The polite live region exists but stays quiet during pure navigation (no double-speech).
+    const liveAttrs = await page.evaluate(() => {
       const l = document.getElementById('sr-updates');
-      return { live: l?.getAttribute('aria-live'), text: (l?.textContent || '').trim() };
+      return { present: !!l, live: l?.getAttribute('aria-live'), navText: (l?.textContent || '').trim() };
     });
-    expect(liveRegion.live).toBe('polite');
-    expect(liveRegion.text.length).toBeGreaterThan(0);
+    expect(liveAttrs.present).toBe(true);
+    expect(liveAttrs.live).toBe('polite');
+    expect(liveAttrs.navText).toBe(''); // not echoing the focused node
+
+    // It DOES announce the match when its detail card opens (focus jumps to "close").
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#detail')).toBeVisible();
+    await page.waitForFunction(() => / versus /.test(document.getElementById('sr-updates')?.textContent || ''));
   });
 
   test('tab switch uses the View Transitions API without errors', async ({ page }) => {

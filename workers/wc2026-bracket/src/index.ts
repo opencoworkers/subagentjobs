@@ -547,10 +547,10 @@ export function page(matches: ShapedMatch[]): string {
     '    node.appendChild(svel("circle",{"class":"foc",cx:p[0],cy:p[1],r:rad+1.5,"stroke-width":Math.max(0.5,rad*0.2)}));',
     '    node.appendChild(svel("circle",{"class":"dot",cx:p[0],cy:p[1],r:rad,fill:fillc(g.st),stroke:col(g.st)}));',
     '    if(g.k==="match"&&g.score){var sc=svel("text",{"class":"sc"+(g.score.indexOf("(")>=0?" pk":""),x:p[0],y:p[1],fill:g.live?"#f47067":"#51c4ff"});sc.textContent=g.score;node.appendChild(sc);}',
-    '    if(g.mid){var m=mById(g.mid),lab=m?(m.home.n+" versus "+m.away.n+(m.s?" "+m.s.h+" "+m.s.a:"")):g.mid;',
+    '    if(g.mid){var m=mById(g.mid),lab=m?mLabel(m):g.mid;',
     '      var ti=svel("title");ti.textContent=lab;node.appendChild(ti);node.setAttribute("aria-label",lab);',
     '      NAV.push({id:g.mid,ang:g.ang,el:node});',
-    '      node.addEventListener("focus",(function(id){return function(){setRoving(id);announce(id);};})(g.mid));',
+    '      node.addEventListener("focus",(function(id){return function(){setRoving(id);};})(g.mid));',
     '      node.addEventListener("click",function(ev){ev.stopPropagation();selectMatch(g.mid);});',
     '      node.addEventListener("keydown",(function(id){return function(e){var k=e.key;',
     '        if(k==="Enter"||k===" "){e.preventDefault();selectMatch(id);return;}',
@@ -568,12 +568,14 @@ export function page(matches: ShapedMatch[]): string {
     // Roving tabindex + ring keyboard navigation. The 16 match nodes are the one
     // ring of interactive nodes, so a single tab stop enters the graph and the
     // arrow keys walk around the ring by angle (Right/Down = next clockwise,
-    // Left/Up = prev, Home/End = first/last). The focused match is announced via
-    // the #sr-updates aria-live region.
+    // Left/Up = prev, Home/End = first/last). Per-move feedback comes from each
+    // node's complete aria-label (the APG roving-tabindex pattern); the #sr-updates
+    // live region is reserved for changes focus can't convey — here, naming the match
+    // when its detail card opens (focus then sits on a generic "close" button).
+    'function mLabel(m){return m.home.n+" versus "+m.away.n+(m.s?", "+m.s.h+"\\u2013"+m.s.a:"")+(m.status==="final"?", final":m.status==="in_progress"?", live":"");}',
     'function navIndex(id){for(var i=0;i<NAV.length;i++)if(NAV[i].id===id)return i;return -1;}',
     'function setRoving(id){for(var i=0;i<NAV.length;i++)NAV[i].el.setAttribute("tabindex",NAV[i].id===id?"0":"-1");rovId=id;}',
-    'function announce(id){var l=document.getElementById("sr-updates");if(!l)return;var m=mById(id);',
-    '  l.textContent=m?(m.home.n+" versus "+m.away.n+(m.s?", "+m.s.h+"\\u2013"+m.s.a:"")+(m.status==="final"?", final":m.status==="in_progress"?", live":"")):id;}',
+    'function announce(id){var l=document.getElementById("sr-updates");if(!l)return;var m=mById(id);if(m)l.textContent=mLabel(m);}',
     'function navMove(curId,delta){if(!NAV.length)return;var i=navIndex(curId);if(i<0)i=0;',
     '  var j=delta==="home"?0:delta==="end"?NAV.length-1:(i+delta+NAV.length)%NAV.length;NAV[j].el.focus();}',
     'function fmtSc(v,pk){return v==null?"\\u2013":v+(pk!=null?"<span class=p>("+pk+")</span>":"");}',
@@ -582,7 +584,7 @@ export function page(matches: ShapedMatch[]): string {
     '  var prev=document.querySelector(".node[data-sel]");if(prev){prev.removeAttribute("data-sel");prev.style.removeProperty("anchor-name");}',
     '  var node=document.querySelector(".node[data-id="+id+"]");',
     '  if(node){node.setAttribute("data-sel","");node.style.setProperty("anchor-name","--sel");}selId=id;lastFocus=node||document.activeElement;',
-    '  if(node&&NAV.length)setRoving(id);',
+    '  if(node&&NAV.length)setRoving(id);announce(id);',
     '  var d=document.getElementById("detail"),fin=m.status==="final",hW=fin&&m.w===m.home.c,aW=fin&&m.w===m.away.c;',
     '  d.innerHTML="<button class=dclose aria-label=close>\\u00d7</button>"+',
     '    "<div class=dh><span>"+m.id+" \\u00b7 "+(m.date||"")+"</span><span>"+(m.status==="in_progress"?"<b class=dlive>live</b>":(m.venue||""))+"</span></div>"+',
