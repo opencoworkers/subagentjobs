@@ -153,19 +153,29 @@ impl DesignCoworker {
     /// the physical device. Poll artifact_finalize_publish for the outcome.
     #[tool(description = "Request to publish a built pack. Raises an approval gate on the buddy device (role=design). Does NOT publish yet — call artifact_finalize_publish after the operator decides.")]
     async fn artifact_request_publish(&self, input: Parameters<PublishRequestInput>) -> String {
-        let pack = self.artifacts_dir.join(&input.0.name);
+        let name = match design::sanitize_component(&input.0.name) {
+            Ok(n) => n.to_string(),
+            Err(e) => return format!("error: {e}"),
+        };
+        let gate_id = match design::sanitize_component(&input.0.gate_id) {
+            Ok(g) => g.to_string(),
+            Err(e) => return format!("error: {e}"),
+        };
+        let pack = self.artifacts_dir.join(&name);
         if !pack.join("manifest.json").exists() {
-            return format!("error: no built pack named '{}' — run artifact_build first", input.0.name);
+            return format!("error: no built pack named '{name}' — run artifact_build first");
         }
+        // Record the pack name in the gate so the approval is bound to *this* artifact.
         let gate = Gate::new(
-            input.0.gate_id.clone(),
+            gate_id.clone(),
             "artifact_publish",
-            format!("publish pack {}", input.0.name),
+            name.clone(),
+            format!("publish pack {name}"),
         );
         match design::emit_gate(&self.sessions_dir, &gate) {
             Ok(path) => format!(
-                "gate raised on buddy: {} (id={}). Awaiting operator approval.",
-                path.display(), input.0.gate_id
+                "gate raised on buddy: {} (id={gate_id}, pack={name}). Awaiting operator approval.",
+                path.display()
             ),
             Err(e) => format!("error: {e}"),
         }
@@ -175,18 +185,49 @@ impl DesignCoworker {
     /// published; if denied, abort; if no decision yet, report pending.
     #[tool(description = "Finalize a publish after the operator decides on the buddy. Publishes the pack iff approved (once); aborts on deny; reports pending otherwise.")]
     async fn artifact_finalize_publish(&self, input: Parameters<PublishFinalizeInput>) -> String {
-        match design::read_decision(&self.sessions_dir, &input.0.gate_id) {
-            Ok(None) => format!("pending: gate '{}' awaiting operator approval on the buddy", input.0.gate_id),
-            Ok(Some(Decision::Deny)) => format!("denied: publish of '{}' aborted by operator", input.0.name),
+        let name = match design::sanitize_component(&input.0.name) {
+            Ok(n) => n.to_string(),
+            Err(e) => return format!("error: {e}"),
+        };
+        let gate_id = match design::sanitize_component(&input.0.gate_id) {
+            Ok(g) => g.to_string(),
+            Err(e) => return format!("error: {e}"),
+        };
+
+        // 1. A gate must actually have been raised for this id — otherwise a stale or
+        //    colliding permission-<id>.json could approve a publish nobody requested.
+        let gate = match design::read_gate(&self.sessions_dir, &gate_id) {
+            Ok(Some(g)) => g,
+            Ok(None) => return format!(
+                "error: no gate '{gate_id}' was raised — call artifact_request_publish first"
+            ),
+            Err(e) => return format!("error: {e}"),
+        };
+        // 2. The approval must be for the pack actually being published (no laundering
+        //    one pack's approval into publishing another).
+        if gate.name != name {
+            return format!(
+                "error: gate '{gate_id}' authorizes pack '{}', not '{name}' — refusing to publish",
+                gate.name
+            );
+        }
+
+        // 3. Honour the operator's decision.
+        match design::read_decision(&self.sessions_dir, &gate_id) {
+            Ok(None) => format!("pending: gate '{gate_id}' awaiting operator approval on the buddy"),
+            Ok(Some(Decision::Deny)) => format!("denied: publish of '{name}' aborted by operator"),
             Ok(Some(Decision::Once)) => {
-                let src = self.artifacts_dir.join(&input.0.name);
+                let src = self.artifacts_dir.join(&name);
+                if !src.join("manifest.json").exists() {
+                    return format!("error: pack '{name}' no longer exists — rebuild before publishing");
+                }
                 let published = self.artifacts_dir.join("published");
                 if let Err(e) = std::fs::create_dir_all(&published) {
                     return format!("error: {e}");
                 }
-                let marker = published.join(format!("{}.published", input.0.name));
+                let marker = published.join(format!("{name}.published"));
                 match std::fs::write(&marker, src.join("manifest.json").to_string_lossy().as_bytes()) {
-                    Ok(_) => format!("approved: published '{}' → {}", input.0.name, marker.display()),
+                    Ok(_) => format!("approved: published '{name}' → {}", marker.display()),
                     Err(e) => format!("error: {e}"),
                 }
             }

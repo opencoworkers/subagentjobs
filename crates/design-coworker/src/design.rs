@@ -231,6 +231,7 @@ pub fn build_manifest(name: &str, tokens: &DesignTokens) -> serde_json::Value {
 /// Returns the manifest path. (GIF frames are produced by the designer separately;
 /// the manifest + tokens are the reviewable design artifact.)
 pub fn write_pack(dir: &Path, name: &str, tokens: &DesignTokens) -> std::io::Result<PathBuf> {
+    let name = sanitize_component(name).map_err(io_invalid)?;
     let pack = dir.join(name);
     std::fs::create_dir_all(&pack)?;
     let manifest = build_manifest(name, tokens);
@@ -245,21 +246,66 @@ pub fn write_pack(dir: &Path, name: &str, tokens: &DesignTokens) -> std::io::Res
 
 // ── Approval gate (the human-in-the-loop loop) ────────────────────────────────
 
+/// Reject names that could escape a directory or collide with control chars.
+/// Used for both pack names and gate ids before they are interpolated into a
+/// filesystem path. Returns the validated component unchanged.
+pub fn sanitize_component(name: &str) -> Result<&str, String> {
+    if name.is_empty() {
+        return Err("name must not be empty".into());
+    }
+    if name.len() > 128 {
+        return Err("name too long (max 128 chars)".into());
+    }
+    if name.starts_with('.') {
+        return Err(format!("invalid name '{name}': must not start with '.'"));
+    }
+    if name.contains("..") {
+        return Err(format!("invalid name '{name}': must not contain '..'"));
+    }
+    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        return Err(format!(
+            "invalid name '{name}': only [A-Za-z0-9._-] allowed (no path separators)"
+        ));
+    }
+    Ok(name)
+}
+
+fn io_invalid(e: String) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidInput, e)
+}
+
 /// A pending gate the design coworker raises before a side-effecting action.
 /// Shape matches the buddy's `WirePermissionPrompt` plus a `role`, so the device
 /// can show *who* is asking. Written as `gate-<id>.json` into the sessions dir.
+///
+/// `name` records the artifact the operator is approving — finalize binds the
+/// decision to this so an approval for one pack cannot publish another.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Gate {
     pub role: String,
     pub id: String,
     pub tool: String,
+    /// The artifact (pack) name this gate authorizes.
+    #[serde(default)]
+    pub name: String,
     #[serde(default)]
     pub hint: String,
 }
 
 impl Gate {
-    pub fn new(id: impl Into<String>, tool: impl Into<String>, hint: impl Into<String>) -> Self {
-        Self { role: "design".into(), id: id.into(), tool: tool.into(), hint: hint.into() }
+    pub fn new(
+        id: impl Into<String>,
+        tool: impl Into<String>,
+        name: impl Into<String>,
+        hint: impl Into<String>,
+    ) -> Self {
+        Self {
+            role: "design".into(),
+            id: id.into(),
+            tool: tool.into(),
+            name: name.into(),
+            hint: hint.into(),
+        }
     }
 }
 
@@ -273,27 +319,53 @@ pub enum Decision { Once, Deny }
 struct DecisionFile {
     #[allow(dead_code)]
     cmd: String,
-    #[allow(dead_code)]
     id: String,
     decision: Decision,
 }
 
 /// Emit a gate request into `sessions_dir` for the buddy to surface.
 pub fn emit_gate(sessions_dir: &Path, gate: &Gate) -> std::io::Result<PathBuf> {
+    sanitize_component(&gate.id).map_err(io_invalid)?;
     std::fs::create_dir_all(sessions_dir)?;
     let path = sessions_dir.join(format!("gate-{}.json", gate.id));
     std::fs::write(&path, serde_json::to_vec(gate).unwrap())?;
     Ok(path)
 }
 
+/// Read back a previously emitted gate, if one exists for `id`. Returns
+/// `Ok(None)` when no gate was raised — used by finalize to refuse honouring a
+/// decision file unless a gate actually preceded it.
+pub fn read_gate(sessions_dir: &Path, id: &str) -> std::io::Result<Option<Gate>> {
+    sanitize_component(id).map_err(io_invalid)?;
+    let path = sessions_dir.join(format!("gate-{id}.json"));
+    match std::fs::read(&path) {
+        Ok(bytes) => {
+            let gate: Gate = serde_json::from_slice(&bytes)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            Ok(Some(gate))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
 /// Read the operator's decision for a gate, if one has been written yet.
-/// Returns `Ok(None)` while the gate is still pending.
+/// Returns `Ok(None)` while the gate is still pending. The decision file's own
+/// `id` must match the requested `id` — a decision written for a different gate
+/// is rejected rather than silently honoured.
 pub fn read_decision(sessions_dir: &Path, id: &str) -> std::io::Result<Option<Decision>> {
+    sanitize_component(id).map_err(io_invalid)?;
     let path = sessions_dir.join(format!("permission-{id}.json"));
     match std::fs::read(&path) {
         Ok(bytes) => {
             let parsed: DecisionFile = serde_json::from_slice(&bytes)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            if parsed.id != id {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("decision file id '{}' does not match gate id '{id}'", parsed.id),
+                ));
+            }
             Ok(Some(parsed.decision))
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -373,8 +445,10 @@ mod tests {
     fn gate_roundtrip_approve_and_deny() {
         let dir = std::env::temp_dir().join(format!("design-gate-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        let gate = Gate::new("g1", "artifact_publish", "publish pack bufo");
+        let gate = Gate::new("g1", "artifact_publish", "bufo", "publish pack bufo");
         emit_gate(&dir, &gate).unwrap();
+        // The gate is now readable and records the pack it authorizes.
+        assert_eq!(read_gate(&dir, "g1").unwrap().unwrap().name, "bufo");
 
         // Pending until the buddy writes a decision.
         assert_eq!(read_decision(&dir, "g1").unwrap(), None);
@@ -396,11 +470,53 @@ mod tests {
     }
 
     #[test]
-    fn gate_json_carries_role() {
-        let gate = Gate::new("g9", "artifact_publish", "h");
+    fn gate_json_carries_role_and_name() {
+        let gate = Gate::new("g9", "artifact_publish", "bufo", "h");
         let v: serde_json::Value =
             serde_json::from_str(&serde_json::to_string(&gate).unwrap()).unwrap();
         assert_eq!(v["role"], "design");
         assert_eq!(v["tool"], "artifact_publish");
+        assert_eq!(v["name"], "bufo");
+    }
+
+    #[test]
+    fn sanitize_rejects_traversal() {
+        assert!(sanitize_component("bufo").is_ok());
+        assert!(sanitize_component("bufo-2_v1.0").is_ok());
+        for bad in ["../evil", "a/b", "a\\b", "..", ".hidden", "", "a..b", "name with space"] {
+            assert!(sanitize_component(bad).is_err(), "should reject {bad:?}");
+        }
+    }
+
+    #[test]
+    fn write_pack_rejects_unsafe_name() {
+        let dir = std::env::temp_dir().join(format!("design-unsafe-{}", std::process::id()));
+        let err = write_pack(&dir, "../escape", &DesignTokens::canonical()).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn read_decision_rejects_id_mismatch() {
+        let dir = std::env::temp_dir().join(format!("design-mismatch-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // Decision file named for gA but whose internal id says gB — must be rejected,
+        // not silently accepted (defends against stale/colliding decision files).
+        std::fs::write(
+            dir.join("permission-gA.json"),
+            br#"{"cmd":"permission","id":"gB","decision":"once"}"#,
+        ).unwrap();
+        assert!(read_decision(&dir, "gA").is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn read_gate_absent_is_none() {
+        let dir = std::env::temp_dir().join(format!("design-nogate-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(read_gate(&dir, "never").unwrap(), None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

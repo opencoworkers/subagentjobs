@@ -1,7 +1,7 @@
 {
   "design-coworker": {
-    "command": "${CLAUDE_PLUGIN_ROOT}/../../target/debug/design-coworker",
-    "args": ["--sessions-dir", "${COWORK_SESSIONS_DIR:-sessions}", "--artifacts-dir", "${DESIGN_ARTIFACTS_DIR:-artifacts}"],
+    "command": "${CLAUDE_PROJECT_DIR}/target/debug/design-coworker",
+    "args": [],
     "env": {}
   }
 }

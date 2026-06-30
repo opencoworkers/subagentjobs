@@ -77,8 +77,11 @@ public final class HardwareBuddyLink: NSObject {
     private let rxID       = CBUUID(string: NordicUART.rxWriteUUID)
     private let txID       = CBUUID(string: NordicUART.txNotifyUUID)
 
+    /// A queued frame plus whether it counts toward folder-push progress. Heartbeats,
+    /// status, and TimeSync interleave with a push, so only push frames advance the bar.
+    private struct OutFrame { let data: Data; let isPush: Bool }
     /// Queue of frames awaiting a writable characteristic / write-with-response slot.
-    private var outbox: [Data] = []
+    private var outbox: [OutFrame] = []
     private var lastSnapshot: HeartbeatSnapshot? = nil
 
     public override init() {
@@ -130,7 +133,7 @@ public final class HardwareBuddyLink: NSObject {
         do {
             let cmds = try FolderPush.commands(for: directory, name: name)
             pushProgress = (0, cmds.count)
-            for cmd in cmds { enqueue(cmd) }
+            for cmd in cmds { enqueue(cmd, isPush: true) }
         } catch {
             lastError = String(describing: error)
         }
@@ -138,9 +141,9 @@ public final class HardwareBuddyLink: NSObject {
 
     // MARK: - Outbox
 
-    private func enqueue<T: Encodable>(_ value: T) {
+    private func enqueue<T: Encodable>(_ value: T, isPush: Bool = false) {
         guard let frame = try? codec.frame(value) else { return }
-        outbox.append(frame)
+        outbox.append(OutFrame(data: frame, isPush: isPush))
         flush()
     }
 
@@ -158,19 +161,22 @@ public final class HardwareBuddyLink: NSObject {
                 if rxInFlight { break }
                 let frame = outbox.removeFirst()
                 rxInFlight = true
-                peripheral.writeValue(frame, for: rx, type: .withResponse)
+                rxInFlightPush = frame.isPush
+                peripheral.writeValue(frame.data, for: rx, type: .withResponse)
                 break
             } else {
                 // Respect the without-response flow-control signal.
                 guard peripheral.canSendWriteWithoutResponse else { break }
                 let frame = outbox.removeFirst()
-                peripheral.writeValue(frame, for: rx, type: .withoutResponse)
-                advancePushProgress()
+                peripheral.writeValue(frame.data, for: rx, type: .withoutResponse)
+                if frame.isPush { advancePushProgress() }
             }
         }
     }
 
     private var rxInFlight = false
+    /// Whether the response-paced write currently in flight is a folder-push frame.
+    private var rxInFlightPush = false
 
     private func advancePushProgress() {
         if var p = pushProgress {
@@ -186,6 +192,7 @@ public final class HardwareBuddyLink: NSObject {
         outbox.removeAll()
         lastSnapshot = nil
         rxInFlight = false
+        rxInFlightPush = false
         pushProgress = nil
         battery = nil
         deviceStats = nil
@@ -330,7 +337,8 @@ extension HardwareBuddyLink: CBPeripheralDelegate {
                                        error: Error?) {
         Task { @MainActor in
             self.rxInFlight = false
-            self.advancePushProgress()
+            if self.rxInFlightPush { self.advancePushProgress() }
+            self.rxInFlightPush = false
             self.flush()
         }
     }

@@ -32,6 +32,11 @@ cargo build -p design-coworker      # → target/debug/design-coworker
 cargo test  -p design-coworker      # token engine, lint, artifact, gate roundtrip
 ```
 
+`mcp/servers.json` resolves the binary at `${CLAUDE_PROJECT_DIR}/target/debug/design-coworker`,
+so build it in this repo before enabling the plugin. The server reads
+`COWORK_SESSIONS_DIR` (gate handshake) and `DESIGN_ARTIFACTS_DIR` (artifacts) from
+the environment, defaulting to `sessions/` and `artifacts/`.
+
 ## The loop
 
 ```
