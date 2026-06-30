@@ -331,6 +331,7 @@ function sharedCss(): string {
   --bg:#0a0a0a;--panel:#111;--line:#1f1f1f;--line2:#2a2a2a;
   --txt:#d4d4d4;--txt-hi:#f4f4f4;--mut:#6a6a6a;--dim:#3a3a3a;
   --cyan:#51c4ff;--green:#7bd88f;--amber:#f4a73b;--red:#f47067;
+  --focus:#5fd4ff;
 }
 /* Display-P3 widening for wide-gamut screens (iPhone 16 Pro, modern Chrome). */
 @supports (color: color(display-p3 1 1 1)){
@@ -340,6 +341,7 @@ function sharedCss(): string {
       --green:color(display-p3 0.46 0.85 0.53);
       --amber:color(display-p3 0.95 0.64 0.20);
       --red:color(display-p3 0.93 0.42 0.38);
+      --focus:color(display-p3 0.37 0.83 1.00);
     }
   }
 }
@@ -396,7 +398,7 @@ main{padding:12px 16px;padding-bottom:calc(48px + env(safe-area-inset-bottom))}
 .node .dot{stroke-width:.3}
 .node .foc{fill:none;stroke:none}
 .node:focus{outline:none}
-.node:focus .foc,.node[data-sel] .foc{stroke:var(--cyan);stroke-width:.4}
+.node:focus .foc,.node[data-sel] .foc{stroke:var(--focus)}
 .node .sc{font-family:ui-monospace,monospace;font-weight:600;font-size:2.1px;text-anchor:middle;dominant-baseline:central}
 .node .sc.pk{font-size:1.7px}
 .node.live .dot{animation:pdot 1.2s ease-in-out infinite}
@@ -541,8 +543,8 @@ export function page(matches: ShapedMatch[]): string {
     '    var rad=g.k==="match"?(g.live?2.2:g.st==="adv"?2:1.6):g.k==="r16"?0.9:0.7;',
     '    var node=svel("g",{"class":"node"+(g.live?" live":"")});',
     '    if(g.mid){node.setAttribute("data-id",g.mid);node.setAttribute("tabindex","0");node.setAttribute("role","button");}',
-    '    node.appendChild(svel("circle",{"class":"hit",cx:p[0],cy:p[1],r:3.6}));',
-    '    node.appendChild(svel("circle",{"class":"foc",cx:p[0],cy:p[1],r:rad+1.3}));',
+    '    node.appendChild(svel("circle",{"class":"hit",cx:p[0],cy:p[1],r:5.2}));',
+    '    node.appendChild(svel("circle",{"class":"foc",cx:p[0],cy:p[1],r:rad+1.5,"stroke-width":Math.max(0.5,rad*0.2)}));',
     '    node.appendChild(svel("circle",{"class":"dot",cx:p[0],cy:p[1],r:rad,fill:fillc(g.st),stroke:col(g.st)}));',
     '    if(g.k==="match"&&g.score){var sc=svel("text",{"class":"sc"+(g.score.indexOf("(")>=0?" pk":""),x:p[0],y:p[1],fill:g.live?"#f47067":"#51c4ff"});sc.textContent=g.score;node.appendChild(sc);}',
     '    if(g.mid){var m=mById(g.mid),lab=m?(m.home.n+" versus "+m.away.n+(m.s?" "+m.s.h+" "+m.s.a:"")):g.mid;',
