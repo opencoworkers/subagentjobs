@@ -523,7 +523,7 @@ export function page(matches: ShapedMatch[]): string {
     '}',
     'function loadGraph(){',
     '  fetch("/api/bracket").then(function(r){return r.json();}).then(function(d){',
-    '    DATA=d;buildSVG();if(/^#M\\d\\d$/.test(location.hash))selectMatch(location.hash.slice(1));',
+    '    DATA=d;buildSVG();if(/^#M\\d\\d$/.test(location.hash))selectMatch(location.hash.slice(1),false);',
     '  });',
     '}',
     'function buildSVG(){',
@@ -557,8 +557,8 @@ export function page(matches: ShapedMatch[]): string {
     '  applyCam();',
     '}',
     'function fmtSc(v,pk){return v==null?"\\u2013":v+(pk!=null?"<span class=p>("+pk+")</span>":"");}',
-    'function selectMatch(id){if(document.startViewTransition&&!RM)document.startViewTransition(function(){doSelect(id);});else doSelect(id);}',
-    'function doSelect(id){var m=mById(id);if(!m)return;',
+    'function selectMatch(id,ui){if(document.startViewTransition&&!RM)document.startViewTransition(function(){doSelect(id,ui);});else doSelect(id,ui);}',
+    'function doSelect(id,ui){var m=mById(id);if(!m)return;',
     '  var prev=document.querySelector(".node[data-sel]");if(prev){prev.removeAttribute("data-sel");prev.style.removeProperty("anchor-name");}',
     '  var node=document.querySelector(".node[data-id="+id+"]");',
     '  if(node){node.setAttribute("data-sel","");node.style.setProperty("anchor-name","--sel");}selId=id;lastFocus=node||document.activeElement;',
@@ -569,7 +569,7 @@ export function page(matches: ShapedMatch[]): string {
     '    "<div class=dsep></div>"+',
     '    "<div class=drow data-s="+(aW?"won":fin?"lost":"none")+"><span class=fl>"+m.away.f+"</span><span class=nm>"+m.away.n+"</span><span class=dsc>"+fmtSc(m.s?m.s.a:null,m.pk?m.pk.a:null)+"</span></div>"+',
     '    (m.note?"<div class=dnote>"+m.note+"</div>":"");',
-    '  var cb=d.querySelector(".dclose");cb.addEventListener("click",deselect);d.hidden=false;cb.focus();',
+    '  var cb=d.querySelector(".dclose");cb.addEventListener("click",deselect);d.hidden=false;if(ui!==false)cb.focus();',
     '  if(location.hash!=="#"+id)history.replaceState(null,"","#"+id);',
     '}',
     'function deselect(){var p=document.querySelector(".node[data-sel]");if(p){p.removeAttribute("data-sel");p.style.removeProperty("anchor-name");}',
@@ -598,12 +598,14 @@ export function page(matches: ShapedMatch[]): string {
     '  var svg=document.getElementById("svg");if(svg)svg.addEventListener("click",function(e){var t=e.target;if(t===svg||t.id==="cam"||(t.getAttribute&&(""+t.getAttribute("class")).indexOf("ring")>=0))deselect();});',
     '  document.querySelectorAll("[data-z]").forEach(function(b){b.addEventListener("click",function(ev){ev.stopPropagation();',
     '    if(b.dataset.z==="in")zoomAt(50,50,1.4);else if(b.dataset.z==="out")zoomAt(50,50,1/1.4);else resetView();});});',
-    // Match-detail dialog keyboard model (WAI-ARIA): Escape closes + restores focus,
-    // Tab/Shift+Tab cycle stays within the dialog (focus-trap-lite).
-    '  var dlg=document.getElementById("detail");',
-    '  if(dlg)dlg.addEventListener("keydown",function(e){if(dlg.hidden)return;',
+    // Non-modal detail-card keyboard model. Escape is bound at the document level and
+    // guarded on "card open", so it closes from anywhere on the page (the card is not a
+    // native modal and the background stays interactive — a #detail-scoped handler would
+    // go dead the moment focus moved to a zoom/nav control). Tab cycles within the card
+    // only while focus is already inside it; otherwise Tab flows normally (non-modal).
+    '  document.addEventListener("keydown",function(e){var dlg=document.getElementById("detail");if(!dlg||dlg.hidden)return;',
     '    if(e.key==="Escape"){e.preventDefault();deselect();return;}',
-    '    if(e.key==="Tab"){var f=dlg.querySelectorAll("button, a[href], input, select, textarea");if(!f.length)return;',
+    '    if(e.key==="Tab"&&dlg.contains(document.activeElement)){var f=dlg.querySelectorAll("button, a[href], input, select, textarea");if(!f.length)return;',
     '      var first=f[0],last=f[f.length-1];',
     '      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}',
     '      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}',
@@ -654,7 +656,7 @@ ${sharedCss()}
         <button data-z=out aria-label="zoom out">−</button>
         <button data-z=reset aria-label="reset view">⤢</button>
       </div>
-      <dialog id=detail role=dialog aria-modal=true aria-label="match detail" hidden></dialog>
+      <dialog id=detail role=dialog aria-label="match detail" hidden></dialog>
     </div>
     <div class=legend>
       <span class=leg><i style="background:#51c4ff"></i>upcoming</span>
