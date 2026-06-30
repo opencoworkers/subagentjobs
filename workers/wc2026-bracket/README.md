@@ -124,8 +124,9 @@ forcing pinch-to-read tiny labels:
 
 Ties decided on penalties carry a separate shootout score per side
 (`fact_match.home_pens` / `away_pens`), rendered as a parenthesised sub-score —
-`0 (4) – 0 (3)` on the match cards and `0(4)-0(3)` on the radial node. Yesterday's
-(Jun 29) results are penalty dramas: MEX 0 (4)–(3) KOR and BRA 2 (5)–(4) NGA.
+`1 (4) – 1 (3)` on the match cards and `1(4)-1(3)` on the radial node. The
+Jun 29 results include two penalty dramas: Paraguay beat Germany 1–1 (4–3 pens)
+and Morocco beat the Netherlands 1–1 (3–2 pens).
 
 ## Styling — iPhone 16 Pro / Chrome
 

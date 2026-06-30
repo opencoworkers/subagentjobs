@@ -1,42 +1,17 @@
 -- =============================================================================
--- wc2026-bracket — D1 schema (Kimball star, mirrors subagentjobs-dwh style)
--- Applied to D1 `subagentjobs-dwh`.  Tagged: github:opencoworkers/subagentjobs
+-- wc2026-bracket — authoritative Round-of-32 data (real WC 2026, as of 2026-06-30)
 -- =============================================================================
+-- Production was seeded from an earlier, placeholder dataset; INSERT OR IGNORE in
+-- 0001 cannot overwrite those rows, so this migration replaces them with the real
+-- bracket. Runs after 0003 (so home_pens/away_pens exist) and is idempotent —
+-- INSERT OR REPLACE re-asserts the canonical snapshot on every deploy.
+--
+-- State on 2026-06-30: four ties complete (M03 & M04 decided on penalties), the
+-- rest scheduled (the Jun 30 trio kick off 1/5/9pm ET — none live yet).
+-- Sources: FIFA match centre; Wikipedia "2026 FIFA World Cup knockout stage"; CBS bracket.
 
--- ── dim_team ────────────────────────────────────────────────────────────────
--- One row per national team in the Round of 32.
-CREATE TABLE IF NOT EXISTS dim_team (
-  team_code TEXT PRIMARY KEY,   -- ISO-ish 3-letter code, e.g. 'CAN'
-  name      TEXT NOT NULL,      -- 'Canada'
-  flag      TEXT NOT NULL       -- '🇨🇦'
-);
-
--- ── fact_match ──────────────────────────────────────────────────────────────
--- One row per Round-of-32 match.  `r16_group` pairs the two matches whose
--- winners meet in the same Round-of-16 tie (used for the radial bracket edges).
-CREATE TABLE IF NOT EXISTS fact_match (
-  match_id    TEXT PRIMARY KEY,                    -- 'M01'
-  seq         INTEGER NOT NULL,                    -- ordering around the radial
-  match_date  TEXT,                                -- 'Jun 28'
-  venue       TEXT,
-  status      TEXT NOT NULL DEFAULT 'scheduled',   -- scheduled|in_progress|final
-  home_code   TEXT NOT NULL REFERENCES dim_team(team_code),
-  away_code   TEXT NOT NULL REFERENCES dim_team(team_code),
-  home_score  INTEGER,
-  away_score  INTEGER,
-  home_pens   INTEGER,                             -- penalty-shootout goals (tie decided on pens)
-  away_pens   INTEGER,
-  winner_code TEXT,                                -- set when status='final'
-  prob_home   REAL,                                -- pre-match win prob for home (0-100)
-  note        TEXT,                                -- 'AET', 'pens 4-2', …
-  r16_group   INTEGER NOT NULL,                    -- 1..8 — pairs feeding one R16 tie
-  updated_at  TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_fact_match_status ON fact_match(status);
-CREATE INDEX IF NOT EXISTS idx_fact_match_seq    ON fact_match(seq);
-
--- ── seed: 32 teams (real Round of 32, 2026 FIFA World Cup) ────────────────────
+-- Real 32 teams. INSERT OR IGNORE adds the ones not in the earlier seed and leaves
+-- any already-present rows untouched (avoids disturbing fact_match foreign keys).
 INSERT OR IGNORE INTO dim_team (team_code, name, flag) VALUES
   ('CAN','Canada','🇨🇦'),       ('RSA','South Africa','🇿🇦'),
   ('BRA','Brazil','🇧🇷'),       ('JPN','Japan','🇯🇵'),
@@ -55,11 +30,10 @@ INSERT OR IGNORE INTO dim_team (team_code, name, flag) VALUES
   ('ARG','Argentina','🇦🇷'),    ('CPV','Cape Verde','🇨🇻'),
   ('COL','Colombia','🇨🇴'),     ('GHA','Ghana','🇬🇭');
 
--- ── seed: 16 matches (M01..M16), r16_group 1..8 ──────────────────────────────
--- Real Round of 32 as of 2026-06-30: M01–M04 final (M03/M04 decided on
--- penalties), M05–M16 scheduled. r16_group pairs the two R32 matches whose
--- winners meet in the same Round-of-16 tie (real bracket structure).
-INSERT OR IGNORE INTO fact_match
+-- Real 16 Round-of-32 ties. INSERT OR REPLACE overwrites the placeholder rows
+-- by primary key (M01..M16). r16_group pairs the two ties whose winners meet in
+-- the same Round-of-16 match (real bracket).
+INSERT OR REPLACE INTO fact_match
   (match_id,seq,match_date,venue,status,home_code,away_code,home_score,away_score,home_pens,away_pens,winner_code,prob_home,note,r16_group,updated_at) VALUES
   ('M01', 1,'Jun 28','Inglewood',      'final',    'CAN','RSA',1,0,NULL,NULL,'CAN',58,NULL,  1,'2026-06-28T22:00:00Z'),
   ('M02', 2,'Jun 29','Houston',        'final',    'BRA','JPN',2,1,NULL,NULL,'BRA',64,NULL,  3,'2026-06-29T20:00:00Z'),

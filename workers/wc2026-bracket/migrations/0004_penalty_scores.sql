@@ -1,15 +1,8 @@
 -- =============================================================================
--- wc2026-bracket — Jun 29 penalty-shootout results (idempotent UPDATEs)
--- A tie decided on penalties is shown as goals + a parenthesised shootout score,
--- e.g. 0 (4) – 0 (3). Safe to re-run.
+-- wc2026-bracket — superseded
 -- =============================================================================
-
--- M03 MEX–KOR: 0–0, Mexico won 4–3 on penalties.
-UPDATE fact_match SET status='final', home_score=0, away_score=0,
-  home_pens=4, away_pens=3, winner_code='MEX', note='pens',
-  updated_at='2026-06-29T22:30:00Z' WHERE match_id='M03';
-
--- M04 BRA–NGA: 2–2 (AET), Brazil won 5–4 on penalties.
-UPDATE fact_match SET status='final', home_score=2, away_score=2,
-  home_pens=5, away_pens=4, winner_code='BRA', note='AET · pens',
-  updated_at='2026-06-29T23:10:00Z' WHERE match_id='M04';
+-- This file previously carried illustrative penalty-shootout results. The real
+-- shootouts (M03 Germany 1–1 Paraguay, Paraguay 4–3 pens; M04 Netherlands 1–1
+-- Morocco, Morocco 3–2 pens) are now part of the authoritative data in
+-- 0001_bracket.sql and 0005_real_bracket.sql. Kept as an idempotent no-op.
+UPDATE fact_match SET updated_at = updated_at WHERE 1 = 0;

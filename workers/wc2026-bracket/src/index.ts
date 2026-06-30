@@ -266,7 +266,7 @@ export default {
             name: 'Update Bracket',
             description: 'Apply match score/status deltas. Agent-to-agent: POST {matches:[{id,status,home_score,away_score,winner,note}]} to /api/update (Bearer UPDATE_SECRET), or publish a JSON feed for the worker cron to ingest.',
             tags: ['football', 'wc2026', 'update', 'ingest', 'autonomous'],
-            examples: ['Update M07 to 2-1 final, winner ENG', 'Push the latest live scores'],
+            examples: ['Update M07 to 2-1 final, winner MEX', 'Push the latest live scores'],
             inputModes: ['application/json'],
             outputModes: ['application/json'],
           },
