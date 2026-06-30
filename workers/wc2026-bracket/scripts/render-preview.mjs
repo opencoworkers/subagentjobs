@@ -9,37 +9,39 @@ import { dirname, join } from 'node:path';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const outDir = join(root, 'tests', '.preview');
 
-// Full Round-of-32, mirroring the live D1/KV data (migrations 0001+0002):
-// M01–M06 final, M07–M08 live, the rest scheduled.
+// Real FIFA World Cup 2026 Round of 32, as of 2026-06-30 (mirrors migrations
+// 0001 + 0005). Four ties complete (two decided on penalties); the rest are
+// scheduled — the Jun 30 trio kick off 1/5/9pm ET, so none are live yet.
+// Sources: FIFA match centre, Wikipedia "2026 FIFA World Cup knockout stage", CBS bracket.
 const T = {
-  CAN: ['Canada', '🇨🇦'], RSA: ['South Africa', '🇿🇦'], USA: ['United States', '🇺🇸'], JPN: ['Japan', '🇯🇵'],
-  MEX: ['Mexico', '🇲🇽'], KOR: ['South Korea', '🇰🇷'], BRA: ['Brazil', '🇧🇷'], NGA: ['Nigeria', '🇳🇬'],
-  ARG: ['Argentina', '🇦🇷'], AUS: ['Australia', '🇦🇺'], FRA: ['France', '🇫🇷'], SEN: ['Senegal', '🇸🇳'],
-  ENG: ['England', '🏴'], ECU: ['Ecuador', '🇪🇨'], ESP: ['Spain', '🇪🇸'], MAR: ['Morocco', '🇲🇦'],
-  GER: ['Germany', '🇩🇪'], CRC: ['Costa Rica', '🇨🇷'], POR: ['Portugal', '🇵🇹'], URU: ['Uruguay', '🇺🇾'],
-  NED: ['Netherlands', '🇳🇱'], CRO: ['Croatia', '🇭🇷'], BEL: ['Belgium', '🇧🇪'], SUI: ['Switzerland', '🇨🇭'],
-  ITA: ['Italy', '🇮🇹'], COL: ['Colombia', '🇨🇴'], POL: ['Poland', '🇵🇱'], QAT: ['Qatar', '🇶🇦'],
-  DEN: ['Denmark', '🇩🇰'], GHA: ['Ghana', '🇬🇭'], SRB: ['Serbia', '🇷🇸'], IRN: ['Iran', '🇮🇷'],
+  CAN: ['Canada', '🇨🇦'], RSA: ['South Africa', '🇿🇦'], BRA: ['Brazil', '🇧🇷'], JPN: ['Japan', '🇯🇵'],
+  GER: ['Germany', '🇩🇪'], PAR: ['Paraguay', '🇵🇾'], NED: ['Netherlands', '🇳🇱'], MAR: ['Morocco', '🇲🇦'],
+  CIV: ['Ivory Coast', '🇨🇮'], NOR: ['Norway', '🇳🇴'], FRA: ['France', '🇫🇷'], SWE: ['Sweden', '🇸🇪'],
+  MEX: ['Mexico', '🇲🇽'], ECU: ['Ecuador', '🇪🇨'], ENG: ['England', '🏴'], COD: ['DR Congo', '🇨🇩'],
+  USA: ['United States', '🇺🇸'], BIH: ['Bosnia & Herzegovina', '🇧🇦'], BEL: ['Belgium', '🇧🇪'], SEN: ['Senegal', '🇸🇳'],
+  ESP: ['Spain', '🇪🇸'], AUT: ['Austria', '🇦🇹'], POR: ['Portugal', '🇵🇹'], CRO: ['Croatia', '🇭🇷'],
+  AUS: ['Australia', '🇦🇺'], EGY: ['Egypt', '🇪🇬'], SUI: ['Switzerland', '🇨🇭'], ALG: ['Algeria', '🇩🇿'],
+  ARG: ['Argentina', '🇦🇷'], CPV: ['Cape Verde', '🇨🇻'], COL: ['Colombia', '🇨🇴'], GHA: ['Ghana', '🇬🇭'],
 };
 const team = (c) => ({ c, n: T[c][0], f: T[c][1] });
 // [id,date,venue,status,home,away,hs,as,w,p,note,g,ph,pa]  (ph/pa = penalty goals)
 const raw = [
-  ['M01', 'Jun 28', 'Toronto', 'final', 'CAN', 'RSA', 1, 0, 'CAN', 61, null, 1],
-  ['M02', 'Jun 28', 'Los Angeles', 'final', 'USA', 'JPN', 2, 1, 'USA', 54, null, 1],
-  ['M03', 'Jun 29', 'Mexico City', 'final', 'MEX', 'KOR', 0, 0, 'MEX', 58, 'pens', 2, 4, 3],
-  ['M04', 'Jun 29', 'New York', 'final', 'BRA', 'NGA', 2, 2, 'BRA', 72, 'AET · pens', 2, 5, 4],
-  ['M05', 'Jun 30', 'Miami', 'final', 'ARG', 'AUS', 2, 0, 'ARG', 77, null, 3],
-  ['M06', 'Jun 30', 'Dallas', 'final', 'FRA', 'SEN', 2, 1, 'FRA', 68, null, 3],
-  ['M07', 'Jul 01', 'Seattle', 'in_progress', 'ENG', 'ECU', 1, 0, null, 70, "62'", 4],
-  ['M08', 'Jul 01', 'Atlanta', 'in_progress', 'ESP', 'MAR', 0, 0, null, 64, "18'", 4],
-  ['M09', 'Jul 02', 'Houston', 'scheduled', 'GER', 'CRC', null, null, null, 75, null, 5],
-  ['M10', 'Jul 02', 'Boston', 'scheduled', 'POR', 'URU', null, null, null, 59, null, 5],
-  ['M11', 'Jul 03', 'Philadelphia', 'scheduled', 'NED', 'CRO', null, null, null, 57, null, 6],
-  ['M12', 'Jul 03', 'Kansas City', 'scheduled', 'BEL', 'SUI', null, null, null, 60, null, 6],
-  ['M13', 'Jul 04', 'San Francisco', 'scheduled', 'ITA', 'COL', null, null, null, 55, null, 7],
-  ['M14', 'Jul 04', 'Guadalajara', 'scheduled', 'POL', 'QAT', null, null, null, 63, null, 7],
-  ['M15', 'Jul 05', 'Vancouver', 'scheduled', 'DEN', 'GHA', null, null, null, 58, null, 8],
-  ['M16', 'Jul 05', 'Monterrey', 'scheduled', 'SRB', 'IRN', null, null, null, 56, null, 8],
+  ['M01', 'Jun 28', 'Inglewood', 'final', 'CAN', 'RSA', 1, 0, 'CAN', 58, null, 1],
+  ['M02', 'Jun 29', 'Houston', 'final', 'BRA', 'JPN', 2, 1, 'BRA', 64, null, 3],
+  ['M03', 'Jun 29', 'Foxborough', 'final', 'GER', 'PAR', 1, 1, 'PAR', 60, 'pens', 2, 3, 4],
+  ['M04', 'Jun 29', 'Guadalupe', 'final', 'NED', 'MAR', 1, 1, 'MAR', 62, 'pens', 1, 2, 3],
+  ['M05', 'Jun 30', 'Arlington', 'scheduled', 'CIV', 'NOR', null, null, null, 42, null, 3],
+  ['M06', 'Jun 30', 'East Rutherford', 'scheduled', 'FRA', 'SWE', null, null, null, 66, null, 2],
+  ['M07', 'Jun 30', 'Mexico City', 'scheduled', 'MEX', 'ECU', null, null, null, 52, null, 4],
+  ['M08', 'Jul 01', 'Atlanta', 'scheduled', 'ENG', 'COD', null, null, null, 74, null, 4],
+  ['M09', 'Jul 01', 'Seattle', 'scheduled', 'BEL', 'SEN', null, null, null, 55, null, 6],
+  ['M10', 'Jul 01', 'Santa Clara', 'scheduled', 'USA', 'BIH', null, null, null, 60, null, 6],
+  ['M11', 'Jul 02', 'Inglewood', 'scheduled', 'ESP', 'AUT', null, null, null, 70, null, 5],
+  ['M12', 'Jul 02', 'Vancouver', 'scheduled', 'SUI', 'ALG', null, null, null, 53, null, 8],
+  ['M13', 'Jul 02', 'Toronto', 'scheduled', 'POR', 'CRO', null, null, null, 56, null, 5],
+  ['M14', 'Jul 03', 'Arlington', 'scheduled', 'AUS', 'EGY', null, null, null, 47, null, 7],
+  ['M15', 'Jul 03', 'Miami', 'scheduled', 'ARG', 'CPV', null, null, null, 82, null, 7],
+  ['M16', 'Jul 03', 'Kansas City', 'scheduled', 'COL', 'GHA', null, null, null, 62, null, 8],
 ];
 const matches = raw.map(([id, date, venue, status, h, a, hs, as, w, p, note, g, ph, pa], i) => ({
   id, seq: i + 1, status, date, venue,

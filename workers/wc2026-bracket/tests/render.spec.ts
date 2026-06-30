@@ -11,10 +11,11 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
 
   test('renders penalty-shootout scores in parentheses', async ({ page }) => {
     await page.goto('/');
-    // M03 (MEX 0(4)–0(3) KOR) and M04 (BRA 2(5)–2(4) NGA) are penalty results.
+    // Real penalty ties: M03 Germany 1(3)–1(4) Paraguay, M04 Netherlands 1(2)–1(3) Morocco.
     const pkTexts = await page.$$eval('.pk', (els) => els.map((e) => e.textContent));
-    expect(pkTexts).toContain('(4)');
-    expect(pkTexts).toContain('(3)');
+    expect(pkTexts).toContain('(4)'); // Paraguay's winning shootout
+    expect(pkTexts).toContain('(3)'); // Morocco's winning shootout (and Germany's losing one)
+    expect(pkTexts).toContain('(2)'); // Netherlands' losing shootout
     expect(pkTexts.length).toBeGreaterThanOrEqual(4);
   });
 
@@ -247,21 +248,23 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
       adv: Array.from(document.querySelectorAll('.code.st-adv')).map((e) => e.textContent || ''),
       elim: Array.from(document.querySelectorAll('.code.st-elim')).map((e) => e.textContent || ''),
     }));
-    expect(codes.adv.length).toBe(6); // 6 finals → 6 advancing teams
-    expect(codes.elim.length).toBe(6);
+    expect(codes.adv.length).toBe(4); // 4 ties complete → 4 advancing teams
+    expect(codes.elim.length).toBe(4);
     expect(codes.adv.every((t) => t.includes('✓'))).toBe(true);
     expect(codes.elim.every((t) => t.includes('✕'))).toBe(true);
 
-    // Live matches carry a static halo ring — a shape cue that survives reduced-motion.
-    expect(await page.locator('.livering').count()).toBe(2); // M07, M08
+    // Live matches carry a static halo ring (shape cue, survives reduced-motion). The
+    // Jun 30 ties haven't kicked off as of this snapshot, so there are none yet — the
+    // cue is exercised by the live-chip/ring code paths and activates when a tie goes live.
+    expect(await page.locator('.livering').count()).toBe(0);
 
     // The legend teaches the non-colour cues.
     const legendText = await page.evaluate(() => document.querySelector('.legend')?.textContent || '');
     expect(legendText).toContain('✓');
     expect(legendText).toContain('✕');
 
-    // Match cards mark the winner with ✓ (6 finals → 6 winners), color-independently.
-    expect(await page.locator('.wmark').count()).toBe(6);
+    // Match cards mark the winner with ✓ (4 completed ties → 4 winners), color-independently.
+    expect(await page.locator('.wmark').count()).toBe(4);
 
     // The crest glyphs are a purely visual cue — the crest layer is aria-hidden so a
     // screen reader doesn't read "check mark"/"x" per team (status is on the node labels).
@@ -310,17 +313,17 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
     expect(geo.bottomOff).toBeLessThanOrEqual(2); // sat on the panel's bottom edge
   });
 
-  test('sticky live/next rail surfaces live + upcoming matches and deep-selects on tap', async ({ page }) => {
+  test('sticky live/next rail surfaces upcoming matches and deep-selects on tap', async ({ page }) => {
     await page.goto('/');
     const rail = page.locator('.rail');
     await expect(rail).toBeVisible();
     expect(await page.evaluate(() => getComputedStyle(document.querySelector('.rail')!).position)).toBe('sticky');
 
-    // 2 live chips (M07, M08) + up to 6 upcoming chips.
-    expect(await page.locator('.chip.live').count()).toBe(2);
-    expect(await page.locator('.chip').count()).toBeGreaterThanOrEqual(2 + 6);
+    // No tie is live in this snapshot, so the rail shows the next 6 scheduled fixtures.
+    expect(await page.locator('.chip.live').count()).toBe(0);
+    expect(await page.locator('.chip').count()).toBeGreaterThanOrEqual(6);
 
-    // Tapping a live chip switches to the bracket tab and selects that match.
+    // Tapping an up-next chip switches to the bracket tab and selects that match.
     await page.locator('.chip[data-go="M07"]').click();
     await expect(page.locator('#detail')).toBeVisible();
     expect(await page.evaluate(() => document.querySelector('.node[data-sel]')?.getAttribute('data-id'))).toBe('M07');
@@ -350,10 +353,10 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
   test('tapping a match node opens the detail card and deep-links the hash', async ({ page }) => {
     await page.goto('/');
     await page.waitForFunction(() => document.querySelectorAll('.node[data-id]').length > 0);
-    // M04 is BRA 2(5)–2(4) NGA (penalty result) — focus+context, not pinch-to-read.
+    // M04 is Netherlands 1(2)–1(3) Morocco (penalty result) — focus+context, not pinch-to-read.
     await page.locator('.node[data-id="M04"]').dispatchEvent('click');
     await expect(page.locator('#detail')).toBeVisible();
-    await expect(page.locator('#detail')).toContainText('(5)');
+    await expect(page.locator('#detail')).toContainText('(3)');
     expect(await page.evaluate(() => location.hash)).toBe('#M04');
   });
 
