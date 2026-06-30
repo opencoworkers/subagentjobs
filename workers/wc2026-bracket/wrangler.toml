@@ -32,7 +32,7 @@ database_id = "305ed041-5dae-44e5-ab1f-8a63efd8627e"
 #   await env.UPDATE_SECRET.get()
 [[secrets_store_secrets]]
 binding = "UPDATE_SECRET"
-store_id = "REPLACE_WITH_SECRETS_STORE_ID"   # → make bracket-secret prints this
+store_id = "565244614fc34be7aa8488ce46112f60"   # → make bracket-secret prints this
 secret_name = "WC2026_UPDATE_SECRET"
 
 # ── Observability + resource tagging ─────────────────────────────────────────
