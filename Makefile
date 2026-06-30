@@ -46,7 +46,7 @@ endef
         qa simplify review commit pr clean-br setup \
         check test test-rust test-swift \
         deploy-web deploy-cron \
-        deploy-bracket migrate-bracket bracket-secret tag-resources bracket-update \
+        deploy-bracket migrate-bracket bracket-secret tag-resources bracket-update bracket-render-test \
         buddy buddy-build \
         atomic toolchain \
         crawl-docs index-docs redis-start redis-stop \
@@ -79,6 +79,7 @@ help:
 	@printf "  $(CYAN)make bracket-secret$(RESET)   provision Secrets Store WC2026_UPDATE_SECRET\n"
 	@printf "  $(CYAN)make tag-resources$(RESET)    tag CF Worker + D1 + secret with the repo tag\n"
 	@printf "  $(CYAN)make bracket-update$(RESET)   update live scores via claude -p subagent worker\n"
+	@printf "  $(CYAN)make bracket-render-test$(RESET) iPhone 16 Pro render test (Playwright + Chromium)\n"
 	@printf "  $(CYAN)make buddy$(RESET)        build + launch BuddyApp (macOS)\n"
 	@printf "  $(CYAN)make atomic$(RESET)       scripts/commit-tested.sh (test-gated commits)\n"
 	@printf "  $(CYAN)make toolchain$(RESET)    install full toolchain (mac or linux)\n"
@@ -202,6 +203,13 @@ bracket-secret:
 	@cd "$(WC2026)" && wrangler secrets-store secret create subagentjobs \
 	  --name WC2026_UPDATE_SECRET --scopes workers 2>&1 || true
 	@printf "$(YELLOW)  → paste the printed store_id into workers/wc2026-bracket/wrangler.toml$(RESET)\n"
+
+# Device-emulated render test: builds an offline preview and drives it through
+# Chromium at iPhone 16 Pro metrics (DPR 3, P3, touch) to verify the radial
+# graph renders crisply with no console errors.
+bracket-render-test:
+	$(call log,Running iPhone 16 Pro render tests (Playwright + Chromium)…)
+	@cd "$(WC2026)" && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm run test:render 2>&1
 
 # Tag every Cloudflare resource for this deployment (Worker + D1 + secret) with
 # the repo tag from cloudflare.toml, so they are discoverable as a group.

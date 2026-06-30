@@ -57,3 +57,36 @@ make bracket-update    # update live scores via a `claude -p` subagent worker
 `make bracket-update` runs a **`claude -p` subagent worker** that fetches the
 latest results, diffs them against `/api/bracket`, and POSTs only the changed
 matches to `/api/update` — the same agent-driven pattern as `make review` / `make pr`.
+
+## Radial-graph rendering — iPhone 16 Pro / Chrome
+
+The bracket canvas is tuned for the iPhone 16 Pro panel (DPR 3, Display-P3,
+120 Hz ProMotion) and modern Chrome:
+
+- **Display-P3 + `desynchronized` 2D context** — wider-gamut, lower-latency
+  paint, with graceful fallback to sRGB.
+- **DPR capped at 3** — full retina sharpness without letting a pathological
+  `devicePixelRatio` blow up the backing store.
+- **On-demand ("dirty") rendering** — a continuous `requestAnimationFrame` loop
+  runs *only* while a match is live (the blinking node); otherwise the graph
+  paints once and idles, so ProMotion isn't pinned at 120 Hz. Pan, pinch-zoom
+  and resize each schedule a single coalesced frame.
+- **`prefers-reduced-motion`** disables the blink loop entirely.
+- **P3 palette + Chrome 150 relative-color alpha** — the accent palette is
+  widened to `color(display-p3 …)` on `@media (color-gamut: p3)` screens, and
+  translucent variants use `rgb(from var(--c) r g b / α)` with an sRGB fallback
+  declared first.
+- **`content-visibility` / `contain`** on match cards + the graph wrapper to cap
+  layout/paint work.
+
+### Render test
+
+```bash
+make bracket-render-test     # or: npm run test:render
+```
+
+Builds an offline preview (`scripts/render-preview.mjs`, esbuild-bundles the
+worker and calls the exported `page()`), serves it (`scripts/preview-server.mjs`),
+and drives it through **Chromium at emulated iPhone 16 Pro metrics**
+(`playwright.config.ts`) to assert: DPR-3 backing store, P3/desynchronized
+context, a non-blank painted canvas, the on-demand loop, and zero console errors.
