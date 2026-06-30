@@ -14,14 +14,65 @@
  *   GET  /api/status                → summary counts + final results
  *   POST /api/update                → apply score/status deltas (Bearer secret)
  *   GET  /health                    → liveness
- *   GET  /.well-known/agent-card.json → A2A discovery
+ *   GET  /.well-known/agent-card.json    → A2A discovery
+ *   GET  /.well-known/agent-context.json → full worker + binding context for agents
  *   POST /a2a                       → A2A tasks/send → bracket artifact
+ *   (cron) scheduled()              → autonomous score ingestion from SCORES_SOURCE_URL
+ *
+ * Autonomy: this Worker is designed to run agent-to-agent with no human in the
+ * loop. agent-context.json (served live at /.well-known/agent-context.json)
+ * gives any future Claude/A2A agent the complete binding + update context.
  */
+
+import agentContext from './agent-context.json';
 
 export interface Env {
   DB: D1Database;
   // Cloudflare Secrets Store binding — read with await env.UPDATE_SECRET.get()
   UPDATE_SECRET?: { get(): Promise<string> };
+  // Autonomous ingestion source: scheduled() fetches this and applies deltas.
+  SCORES_SOURCE_URL?: string;
+}
+
+// Match-delta shape accepted by /api/update and the scheduled ingester.
+interface MatchDelta {
+  id: string;
+  status?: string;
+  home_score?: number | null;
+  away_score?: number | null;
+  winner?: string | null;
+  winner_code?: string | null;
+  note?: string | null;
+}
+
+// Apply score/status deltas to fact_match. Shared by POST /api/update (human or
+// agent push) and scheduled() (autonomous cron). Returns the applied timestamp.
+async function applyUpdates(env: Env, deltas: MatchDelta[]): Promise<{ updated: string; count: number }> {
+  const now = new Date().toISOString();
+  const stmts = deltas
+    .filter((m) => typeof m?.id === 'string')
+    .map((m) =>
+      env.DB.prepare(
+        `UPDATE fact_match
+            SET status      = COALESCE(?, status),
+                home_score  = ?,
+                away_score  = ?,
+                winner_code = ?,
+                note        = ?,
+                updated_at  = ?
+          WHERE match_id = ?`
+      ).bind(
+        m.status ?? null,
+        m.home_score ?? null,
+        m.away_score ?? null,
+        m.winner ?? m.winner_code ?? null,
+        m.note ?? null,
+        now,
+        m.id
+      )
+    );
+  if (stmts.length) await env.DB.batch(stmts);
+  return { updated: now, count: stmts.length };
 }
 
 const cors = { 'access-control-allow-origin': '*' } as const;
@@ -152,37 +203,30 @@ export default {
         return Response.json({ error: 'missing matches[]' }, { status: 400, headers: cors });
       }
 
-      const now = new Date().toISOString();
-      const stmts = (body.matches as any[])
-        .filter((m) => typeof m?.id === 'string')
-        .map((m) =>
-          env.DB.prepare(
-            `UPDATE fact_match
-                SET status      = COALESCE(?, status),
-                    home_score  = ?,
-                    away_score  = ?,
-                    winner_code = ?,
-                    note        = ?,
-                    updated_at  = ?
-              WHERE match_id = ?`
-          ).bind(
-            m.status ?? null,
-            m.home_score ?? null,
-            m.away_score ?? null,
-            m.winner ?? m.winner_code ?? null,
-            m.note ?? null,
-            now,
-            m.id
-          )
-        );
-      if (stmts.length) await env.DB.batch(stmts);
-
+      const { updated, count } = await applyUpdates(env, body.matches as MatchDelta[]);
       const matches = await loadMatches(env);
       const by = (st: string) => matches.filter((m) => m.status === st).length;
-      return Response.json({ ok: true, updated: now, done: by('final'), live: by('in_progress') }, { headers: cors });
+      return Response.json({ ok: true, updated, applied: count, done: by('final'), live: by('in_progress') }, { headers: cors });
     }
 
     if (u.pathname === '/health') return Response.json({ ok: true, ts: Date.now() }, { headers: cors });
+
+    // ── /.well-known/agent-context.json — full context for autonomous agents ──
+    // The committed manifest augmented with live binding presence, so any future
+    // Claude / A2A agent can self-serve worker + binding context with no human.
+    if (u.pathname === '/.well-known/agent-context.json') {
+      return Response.json({
+        ...agentContext,
+        live: {
+          bindings: {
+            DB: !!env.DB,
+            UPDATE_SECRET: !!env.UPDATE_SECRET,
+            SCORES_SOURCE_URL: !!env.SCORES_SOURCE_URL,
+          },
+          scores_source_configured: !!env.SCORES_SOURCE_URL,
+        },
+      }, { headers: cors });
+    }
 
     // ── A2A agent card ────────────────────────────────────────────────────────
     if (u.pathname === '/.well-known/agent-card.json') {
@@ -195,6 +239,8 @@ export default {
         defaultInputModes: ['text/plain', 'application/json'],
         defaultOutputModes: ['application/json'],
         capabilities: { streaming: false, pushNotifications: false, stateTransitionHistory: false },
+        // Pointer so peer agents can self-serve full binding/update context.
+        contextUrl: 'https://subagentdata.com/.well-known/agent-context.json',
         skills: [
           {
             id: 'get_bracket',
@@ -203,6 +249,15 @@ export default {
             tags: ['football', 'soccer', 'world-cup', 'wc2026', 'bracket'],
             examples: ['Show the World Cup round of 32', 'Which teams advanced?', 'Live World Cup scores'],
             inputModes: ['text/plain', 'application/json'],
+            outputModes: ['application/json'],
+          },
+          {
+            id: 'update_bracket',
+            name: 'Update Bracket',
+            description: 'Apply match score/status deltas. Agent-to-agent: POST {matches:[{id,status,home_score,away_score,winner,note}]} to /api/update (Bearer UPDATE_SECRET), or publish a JSON feed for the worker cron to ingest.',
+            tags: ['football', 'wc2026', 'update', 'ingest', 'autonomous'],
+            examples: ['Update M07 to 2-1 final, winner ENG', 'Push the latest live scores'],
+            inputModes: ['application/json'],
             outputModes: ['application/json'],
           },
         ],
@@ -229,6 +284,28 @@ export default {
     // ── / dashboard ───────────────────────────────────────────────────────────
     const matches = await loadMatches(env);
     return new Response(page(matches), { headers: { 'content-type': 'text/html;charset=utf-8' } });
+  },
+
+  // ── Autonomous score ingestion (Cron Trigger) ──────────────────────────────
+  // No human, no secret: fetch the agent-published SCORES_SOURCE_URL and apply
+  // its {matches:[delta]} to D1. A no-op when the var is unset, so the cron is
+  // safe to ship before a source exists.
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    const src = env.SCORES_SOURCE_URL;
+    if (!src) return;
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const r = await fetch(src, { headers: { accept: 'application/json' } });
+          if (!r.ok) return;
+          const body: any = await r.json();
+          const deltas = Array.isArray(body?.matches) ? (body.matches as MatchDelta[]) : [];
+          if (deltas.length) await applyUpdates(env, deltas);
+        } catch {
+          /* transient source/network error — next tick retries */
+        }
+      })()
+    );
   },
 };
 

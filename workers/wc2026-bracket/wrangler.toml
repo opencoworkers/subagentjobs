@@ -10,6 +10,14 @@ compatibility_date = "2024-09-23"
 
 [vars]
 GITHUB_REPO = "opencoworkers/subagentjobs"
+# Autonomous score ingestion source for the cron scheduled() handler. Point at
+# any agent-published JSON endpoint returning {matches:[{id,status,home_score,
+# away_score,winner,note}]}. Empty = cron is a safe no-op (no human required).
+SCORES_SOURCE_URL = ""
+
+# Cron Trigger: refresh scores agent-to-agent every 10 minutes, no human.
+[triggers]
+crons = ["*/10 * * * *"]
 
 # ── Data: D1 (shared warehouse, same binding name as workers/web) ────────────
 [[d1_databases]]
