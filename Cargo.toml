@@ -54,5 +54,5 @@ once_cell = "1"
 # docs-crawler
 quick-xml      = { version = "0.37", features = ["serialize"] }
 pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
-lru            = "0.12"
+lru            = "=0.16.3"
 url            = "2"
