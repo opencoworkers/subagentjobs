@@ -1,0 +1,20 @@
+# cwc-design — approval gate policy.
+#
+# A gate declares which actions the design coworker may NOT take on its own; they
+# must be approved by a human. The runtime renders a gate as a buddy permission
+# prompt (WirePermissionPrompt with role = "design") and only proceeds once the
+# operator presses approve on the physical device.
+#
+# This is the same human-in-the-loop mechanism the desktop buddy already uses for
+# session permission prompts — see apps/coworkers-desktop-buddy/COWORKERS-PLATFORM.md.
+
+[gate.publish]
+# Publishing a built character pack is the design coworker's only side-effecting
+# action, so it is the only gated one.
+tool    = "artifact_publish"
+require = "operator"          # must be approved by a human, never auto-approved
+surface = "buddy"            # render the gate on the desktop buddy device
+hint    = "publish pack {{name}}"
+
+# Non-gated tools (no operator approval needed): tokens_get, tokens_lint,
+# artifact_build. These are read-only or produce local artifacts only.

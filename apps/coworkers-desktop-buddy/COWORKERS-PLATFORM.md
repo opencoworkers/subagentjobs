@@ -150,24 +150,38 @@ Per the coworkers site, coworkers "can initiate work — not just receive it." C
 
 ## 8. Staged roadmap
 
-1. **Schema + generator** — add `Role` enum + `RoleConfig` to `crates/schema` and
-   `crates/agent-gen`; regenerate `.claude/agents/`. (Pure typed change; no behaviour.)
-2. **One vertical slice: `cwc-finance`** — smallest role that exercises the whole stack
-   (a gate). Plugin skeleton + a trivial MCP (`record_spend`, `list_spend` over
-   `dim_packages`) + `gates.toml` spend gate → buddy prompt. Proves the approval loop end
-   to end on real hardware.
-3. **Generalise the buddy** — add optional `role` to the wire protocol + per-coworker
-   lanes in `BuddyWindow`. (Additive, backward compatible.)
-4. **`cwc-legal`** — second gated role; reuses the slice-2 machinery, only the playbook
-   differs.
-5. **Non-gated roles** — `cwc-design`, `cwc-data`, `cwc-engineering` (wrap existing MCP),
-   `cwc-product` (router) once the gate path is proven.
-6. **Marketplace** — `marketplace.json` listing all `cwc-*` plugins;
-   `claude plugin install cwc-finance@subagentjobs`.
+1. **✅ Proof-of-loop: `cwc-design`** *(implemented)* — the design coworker is the
+   first vertical slice and the only one that needed building to prove the thesis. It
+   ships:
+   - `crates/design-coworker` — MCP server: 8-token design system, WCAG lint,
+     token-set → buddy character-pack artifact builder, and a two-phase approval gate
+     (`artifact_request_publish` → operator decides on the buddy →
+     `artifact_finalize_publish`). Pure logic is unit-tested (9 tests) so the loop is
+     verifiable without a Mac or device.
+   - `plugins/cwc-design/` — plugin packaging (`.claude-plugin/plugin.json`,
+     `commands/design.md`, `skills/design-playbook/`, generated
+     `agents/design-coworker.yaml`, `mcp/servers.json`, `gates.toml`).
+   - Additive wire-protocol change — optional `role` on `PermissionPrompt` /
+     `WirePermissionPrompt` (Rust `src/protocol.rs` + Swift) so the device can show
+     *who* is asking. Backward compatible (serde `default` / `decodeIfPresent`).
+   - `.claude-plugin/marketplace.json` — `claude plugin install cwc-design@subagentjobs`.
 
-Slice 2 is the recommended first build: it is the smallest thing that proves the thesis —
-a coworker's gated action surfacing on the physical buddy and being approved by a button
-press — and everything else is repetition of that pattern with different playbooks.
+   The publish step is the thesis in miniature: a coworker's side-effecting action
+   surfaces on the buddy as a `role = design` prompt and only proceeds on a physical
+   approve. The gate handshake reuses the exact `permission-<id>.json` decision file the
+   desktop app's Approve/Deny buttons already write.
+2. **Per-coworker lanes in `BuddyWindow`** — render the `role` tag in the prompt card
+   and split `entries` into per-coworker status lines. (Surface polish; protocol already
+   carries `role`.)
+3. **`cwc-finance` / `cwc-legal`** — the other gated roles; reuse the slice-1 machinery
+   (gate emit/decide/finalize), only the MCP tools + `gates.toml` policy + playbook
+   differ. Finance adds a spend gate over `dim_packages`; Legal a send/publish gate.
+4. **Non-gated roles** — `cwc-data`, `cwc-engineering` (wrap the existing MCP),
+   `cwc-product` (router) once the gate path is proven.
+
+`cwc-design` was chosen as the proof-of-loop because its artifact — a Hardware Buddy
+character pack — *is* a design deliverable that the buddy renders, so the role, the
+artifact, and the surface are one coherent story end to end.
 
 ## 9. Open questions for the operator
 

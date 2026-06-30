@@ -105,18 +105,22 @@ public struct WirePermissionPrompt: Codable, Sendable, Equatable {
     public let tool: String
     /// Short hint shown on the device display, e.g. `"rm -rf /tmp/foo"`.
     public let hint: String
+    /// Which coworker raised this gate (e.g. `"design"`, `"finance"`). Absent for
+    /// plain session permission prompts. Lets the device show *who* is asking.
+    public let role: String?
 
-    public init(id: String, tool: String, hint: String = "") {
-        self.id = id; self.tool = tool; self.hint = hint
+    public init(id: String, tool: String, hint: String = "", role: String? = nil) {
+        self.id = id; self.tool = tool; self.hint = hint; self.role = role
     }
 
-    private enum CodingKeys: String, CodingKey { case id, tool, hint }
+    private enum CodingKeys: String, CodingKey { case id, tool, hint, role }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id   = try c.decode(String.self, forKey: .id)
         tool = try c.decode(String.self, forKey: .tool)
         hint = try c.decodeIfPresent(String.self, forKey: .hint) ?? ""
+        role = try c.decodeIfPresent(String.self, forKey: .role)
     }
 }
 
