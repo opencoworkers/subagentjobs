@@ -56,6 +56,18 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
     expect(errors, errors.join('\n')).toEqual([]);
   });
 
+  test('tab switch uses the View Transitions API without errors', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await page.goto('/');
+    // Canary supports startViewTransition; the matches tab should animate in.
+    expect(await page.evaluate(() => typeof document.startViewTransition)).toBe('function');
+    await page.click('nav a[data-t="matches"]');
+    await expect(page.locator('#tab-matches')).toBeVisible();
+    await expect(page.locator('.mcard').first()).toBeVisible();
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
   test('on-demand rendering: idle once no match is live', async ({ page }) => {
     // count requestAnimationFrame ticks over ~500ms; with the seed payload one
     // match is live, so the blink loop should be running (ticks > 0) — proving

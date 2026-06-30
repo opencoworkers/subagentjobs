@@ -257,9 +257,20 @@ function sharedCss(): string {
   }
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{color-scheme:dark}
 html,body{margin:0;padding:0;
   font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
   background:var(--bg);color:var(--txt);-webkit-font-smoothing:antialiased;font-size:13px}
+/* SOTA typography: balanced headings + tidy wrapping (Chrome 114 / 117+).
+   Ref: https://developer.chrome.com/blog/css-text-wrap-balance */
+.sh .sl{text-wrap:balance}
+.mteam .nm{text-wrap:pretty}
+/* View Transitions tuning (Chrome 111+): quick cross-fade, disabled for reduced
+   motion. Ref: https://developer.chrome.com/docs/web-platform/view-transitions/same-document */
+::view-transition-old(root),::view-transition-new(root){animation-duration:.2s}
+@media (prefers-reduced-motion: reduce){
+  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}
+}
 #hdr{padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top));
   border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;
   position:sticky;top:0;background:rgba(10,10,10,.94);
@@ -365,13 +376,20 @@ export function page(matches: ShapedMatch[]): string {
     '  catch(e){try{return c.getContext("2d",{desynchronized:true});}catch(e2){return c.getContext("2d");}}}',
     'function hasLive(){return !!(DATA&&DATA.matches.some(function(m){return m.status==="in_progress";}));}',
     'function blinkV(){return RM?1:(0.5+0.5*Math.sin((performance.now()/1000)*Math.PI*1.2));}',
-    'function showTab(name,el){',
+    'function swapTab(name,el){',
     '  document.querySelectorAll("nav a").forEach(function(a){a.classList.remove("active");});',
     '  el.classList.add("active");',
     '  ["bracket","matches"].forEach(function(t){',
     '    var s=document.getElementById("tab-"+t);if(s)s.style.display=(t===name?"":"none");',
     '  });',
     '  if(name==="bracket"){resize();startBlink();}',
+    '}',
+    // SOTA: View Transitions API (same-document, Chrome 111+) cross-fades tabs.
+    // Feature-detected + skipped under reduced-motion.
+    // Ref: https://developer.chrome.com/docs/web-platform/view-transitions/same-document
+    'function showTab(name,el){',
+    '  if(RM||!document.startViewTransition){swapTab(name,el);return;}',
+    '  document.startViewTransition(function(){swapTab(name,el);});',
     '}',
     'function loadGraph(){',
     '  fetch("/api/bracket").then(function(r){return r.json();}).then(function(d){',

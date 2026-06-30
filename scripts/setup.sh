@@ -62,6 +62,16 @@ fi
 export LRU_CAPACITY="${LRU_CAPACITY:-512}"
 export MDX_CACHE_FILE="$REPO/crates/docs-crawler/.cache/mdx-lru.json"
 
+# ── subagentdata.com worker toolchain (opt-in; routed through the Makefile) ───
+# Installs the worker's npm deps + experimental Chrome (Canary) for the render
+# tests. Off by default so cloud boots stay fast — set WC2026_SETUP=1 to enable.
+# Single entrypoint: delegate to `make bracket-setup`.
+export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/opt/pw-browsers}"
+if [ "${WC2026_SETUP:-0}" = "1" ] && command -v make >/dev/null 2>&1; then
+  echo "▶ make bracket-setup (subagentdata.com worker toolchain)…"
+  make -C "$REPO" bracket-setup || echo "⚠ bracket-setup failed (non-fatal)"
+fi
+
 # ── Persist vars for Claude Code Bash tool calls ──────────────────────────────
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   cat >> "$CLAUDE_ENV_FILE" <<EOF

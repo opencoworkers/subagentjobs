@@ -15,13 +15,16 @@ const T = {
   USA: ['United States', '🇺🇸'], JPN: ['Japan', '🇯🇵'],
   MEX: ['Mexico', '🇲🇽'], KOR: ['South Korea', '🇰🇷'],
   BRA: ['Brazil', '🇧🇷'], NGA: ['Nigeria', '🇳🇬'],
+  ENG: ['England', '🏴'], ECU: ['Ecuador', '🇪🇨'],
 };
 const team = (c) => ({ c, n: T[c][0], f: T[c][1] });
+// Mirrors migrations 0001+0002 (latest scores): finals + a live match.
 const raw = [
   ['M01', 'final', 'CAN', 'RSA', 1, 0, 'CAN', 61, null, 1],
   ['M02', 'final', 'USA', 'JPN', 2, 1, 'USA', 54, null, 1],
   ['M03', 'final', 'MEX', 'KOR', 0, 0, 'MEX', 58, 'pens 4-3', 2],
-  ['M04', 'in_progress', 'BRA', 'NGA', 2, 1, null, 72, null, 2],
+  ['M04', 'final', 'BRA', 'NGA', 3, 1, 'BRA', 72, null, 2],
+  ['M07', 'in_progress', 'ENG', 'ECU', 1, 0, null, 70, "62'", 3],
 ];
 const matches = raw.map(([id, status, h, a, hs, as, w, p, note, g], i) => ({
   id, seq: i + 1, status, date: 'Jun 28', venue: 'Toronto',

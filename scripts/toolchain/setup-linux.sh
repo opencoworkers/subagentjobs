@@ -146,6 +146,19 @@ else
     warn "scripts/lsp/setup.sh not found — skipping multilspy install"
 fi
 
+# ── subagentdata.com worker toolchain (routed through the Makefile) ──────────
+# Keep a single entrypoint: delegate to `make bracket-setup` rather than
+# duplicating the npm + experimental-Chrome install logic here.
+if need make && [ -f "$REPO_ROOT_DIR/Makefile" ]; then
+    if make -C "$REPO_ROOT_DIR" bracket-setup; then
+        ok "subagentdata.com worker toolchain (make bracket-setup)"
+    else
+        warn "make bracket-setup failed — see scripts/wc2026/setup.sh"
+    fi
+else
+    warn "make/Makefile missing — skipping wc2026 worker toolchain"
+fi
+
 echo ""
 echo "────────────────────────────────────────"
 echo "✓  Linux VM toolchain ready"

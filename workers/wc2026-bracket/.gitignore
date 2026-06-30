@@ -3,3 +3,4 @@ tests/.preview/
 test-results/
 playwright-report/
 .wrangler/
+dist/

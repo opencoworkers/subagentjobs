@@ -44,15 +44,32 @@ as a group. The new worker is also registered in `cloudflare.toml`.
 | `/.well-known/agent-card.json` | GET    | A2A agent card (`get_bracket` skill)         |
 | `/a2a`                         | POST   | A2A `tasks/send` → bracket data artifact     |
 
-## Makefile (run from repo root)
+## Makefile (run from repo root — single entrypoint)
 
 ```bash
-make migrate-bracket   # apply dim_team/fact_match + seed to D1
+make bracket-setup     # toolchain: npm deps + experimental Chrome (Canary)
+make build-bracket     # typecheck + bundle (wrangler dry-run)
+make bracket-render-test  # iPhone 16 Pro render tests on Chrome Canary
+make migrate-bracket   # apply ALL migrations (schema + seed + latest scores)
 make bracket-secret    # provision Secrets Store WC2026_UPDATE_SECRET (prints store_id)
-make deploy-bracket    # wrangler deploy
+make deploy-bracket    # build → wrangler deploy
+make deploy-bracket-full  # build → migrate → deploy → tag (post-merge ship)
 make tag-resources     # tag Worker + D1 + secret with the repo tag
 make bracket-update    # update live scores via a `claude -p` subagent worker
+make bracket-install-channels  # also install Chrome Beta + Dev channels
 ```
+
+`scripts/wc2026/setup.sh` is the centralized toolchain bootstrap; the Linux VM
+toolchain (`scripts/toolchain/setup-linux.sh`) and the cloud `scripts/setup.sh`
+(`WC2026_SETUP=1`) both route through `make bracket-setup`.
+
+## CI / deploy (`.github/workflows/wc2026.yml`)
+
+- **Every PR**: typecheck → wrangler dry-run bundle → Chrome Canary render tests
+  (gates merge).
+- **On merge to `main`**: applies D1 migrations and `wrangler deploy` — guarded
+  on the `CLOUDFLARE_API_TOKEN` secret and the `WC2026_SECRETS_STORE_ID` repo
+  variable (injected into `wrangler.toml` at deploy time).
 
 `make bracket-update` runs a **`claude -p` subagent worker** that fetches the
 latest results, diffs them against `/api/bracket`, and POSTs only the changed
@@ -111,3 +128,18 @@ them first.
 Resolution order: `PW_CHROMIUM` (explicit path) → `PW_CHANNEL`
 (`chrome-canary` | `chrome-dev` | `chrome-beta` | `chrome`) → auto-detected
 tip-of-tree → the `chromium-tip-of-tree` channel.
+
+## State-of-the-art features & references
+
+The web app deliberately uses recent web-platform features for a better customer
+UX, each feature-detected with a graceful fallback:
+
+| Feature | Where | Reference |
+| --- | --- | --- |
+| **View Transitions API** (same-document) — cross-fade tab switches | `showTab()` + `::view-transition-*` | <https://developer.chrome.com/docs/web-platform/view-transitions/same-document> (Chrome 111+) |
+| **Display-P3 canvas + CSS** — wider-gamut accents on P3 screens | `ctx2d()`, `@media (color-gamut: p3)` | <https://developer.chrome.com/blog/new-canvas-features> |
+| **Relative color syntax** — `rgb(from … / α)` translucent variants | `sharedCss()` | <https://developer.chrome.com/blog/chrome-150-beta> (Chrome 150) |
+| **`text-wrap: balance` / `pretty`** — tidy headings + names | `.sl`, `.mteam .nm` | <https://developer.chrome.com/blog/css-text-wrap-balance> |
+| **`content-visibility` / `contain`** — capped layout/paint | match cards, graph | <https://web.dev/articles/content-visibility> |
+| **`prefers-reduced-motion`** — disables blink loop + transitions | client JS + CSS | <https://web.dev/articles/prefers-reduced-motion> |
+| **Chrome Canary (tip-of-tree)** test target | `playwright.config.ts` | <https://www.google.com/chrome/canary/> |
