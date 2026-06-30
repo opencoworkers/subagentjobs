@@ -80,6 +80,40 @@ test.describe('wc2026 radial bracket — iPhone 16 Pro', () => {
     expect(errors, errors.join('\n')).toEqual([]);
   });
 
+  test('match nodes have enlarged tap targets and a brighter dedicated focus ring', async ({ page }) => {
+    await page.goto('/#M07');
+    await page.waitForFunction(() => document.querySelector('.node[data-sel]') !== null, { timeout: 10_000 });
+
+    // (1) Bigger invisible hit circles on the interactive match nodes — Apple's
+    // 44px-equiv guidance on a 402px phone (16 tappable match nodes).
+    const hitRadii = await page.$$eval('.node[data-id] .hit', (els) => els.map((e) => e.getAttribute('r')));
+    expect(hitRadii.length).toBe(16);
+    expect(hitRadii.every((r) => r === '5.2')).toBe(true);
+
+    // (2) The focus ring sits 1.5 units outside the dot and carries an explicit stroke-width.
+    const ring = await page.evaluate(() => {
+      const sel = document.querySelector('.node[data-sel]')!;
+      const foc = sel.querySelector('.foc')!, dot = sel.querySelector('.dot')!;
+      return {
+        focR: parseFloat(foc.getAttribute('r')!),
+        dotR: parseFloat(dot.getAttribute('r')!),
+        sw: parseFloat(foc.getAttribute('stroke-width')!),
+        stroke: getComputedStyle(foc as Element).stroke,
+      };
+    });
+    expect(ring.focR).toBeCloseTo(ring.dotR + 1.5, 5);
+    expect(ring.sw).toBeGreaterThanOrEqual(0.5);
+    expect(ring.stroke).not.toBe('none'); // visible when selected
+
+    // (3) Dedicated --focus token, distinct from (brighter than) the body --cyan.
+    const tokens = await page.evaluate(() => {
+      const s = getComputedStyle(document.documentElement);
+      return { focus: s.getPropertyValue('--focus').trim(), cyan: s.getPropertyValue('--cyan').trim() };
+    });
+    expect(tokens.focus).toBeTruthy();
+    expect(tokens.focus).not.toBe(tokens.cyan);
+  });
+
   test('tab switch uses the View Transitions API without errors', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));
